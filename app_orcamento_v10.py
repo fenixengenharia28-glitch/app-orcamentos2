@@ -192,7 +192,4 @@ with aba_orc:
     st.header("👷 Quantificação da Mão de Obra")
     tipo_cobranca = st.selectbox("Critério de precificação:", ["Por Empreitada / Ponto", "Por Hora Técnica"])
     
-    valor_servico = 0.0
-    if tipo_cobranca == "Por Empreitada / Ponto": 
-        preco_sugerido_base = st.session_state.db_servicos[st.session_state.db_servicos["Serviço"]
-        servico_selecionado]["Preço Padrão"].values col_srv1, col_srv2 = st.columns(2)
+    valor_servico = 0.0 if tipo_cobranca == "Por Empreitada / Ponto": preco_sugerido_base = st.session_state.db_servicos[st.session_state.db_servicos["Serviço"] == servico_selecionado]["Preço Padrão"].values ​​col_srv1, col_srv2 = st.columns(2) with col_srv1: qtd_pontos = st.number_input("Quantidade de Unidades/Pontos/M²:", min_value=1.0, value=10.0) with col_srv2: preco_ponto = st.number_input("Preço por Unidade (R$):", min_value=0.0, value=float(preco_sugerido_base)) valor_servico = qtd_pontos * preco_ponto elif tipo_cobranca == "Por Hora Técnica": col_hr1, col_hr2 = st.columns(2) with col_hr1: qtd_horas = st.number_input("Horas estimadas de execução:", min_value=0.5, value=4.0) with col_hr2: default_preco_hora = st.session_state.get("preco_hora_salvado", 60.0) preco_hora = st.number_input("Valor da hora técnica (R$):", min_value=0.0, value=default_preco_hora) valor_servico = qtd_horas * preco_hora
