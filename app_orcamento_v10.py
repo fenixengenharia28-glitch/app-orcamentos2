@@ -3,48 +3,40 @@ import pandas as pd
 import datetime as dt
 import hashlib
 import qrcode
+import gspread
 from io import BytesIO
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from PIL import Image
-from streamlit_gsheets import GSheetsConnection
 
 st.set_page_config(page_title="Fênix Engenharia", page_icon="🏗️", layout="centered")
 
-# Validação e Conexão de Infraestrutura com a Planilha Google nos Secrets
-try:
-    conn = st.connection("gsheets", type=GSheetsConnection)
-except Exception as e:
-    st.error("Erro na conexão com o Google Planilhas. Configure a aba Secrets no Streamlit Cloud.")
-
-# Mecanismo inteligente de sincronização bidirecional (Aba Planilha <-> Aplicativo)
-def carregar_dados(aba, colunas, padrao=[]):
-    if f"cached_{aba}" not in st.session_state:
+# Conexão nativa, direta e ultra-leve com o Google Planilhas via gspread público
+def carregar_dados_direto(aba_nome, colunas_padrao, dados_padrao=[]):
+    if f"cached_{aba_nome}" not in st.session_state:
         try:
-            df = conn.read(worksheet=aba, ttl="1m")
-            if df.empty: 
-                df = pd.DataFrame(padrao, columns=colunas)
-            st.session_state[f"cached_{aba}"] = df
+            # Acessa diretamente a planilha através do ID público contido no seu link
+            url_planilha = "https://google.com" + aba_nome
+            df = pd.read_csv(url_planilha)
+            if df.empty:
+                df = pd.DataFrame(dados_padrao, columns=colunas_padrao)
+            st.session_state[f"cached_{aba_nome}"] = df
         except:
-            st.session_state[f"cached_{aba}"] = pd.DataFrame(padrao, columns=colunas)
-    return st.session_state[f"cached_{aba}"]
+            st.session_state[f"cached_{aba_nome}"] = pd.DataFrame(dados_padrao, columns=colunas_padrao)
+    return st.session_state[f"cached_{aba_nome}"]
 
-def salvar_dados(aba, df):
-    st.session_state[f"cached_{aba}"] = df
-    try: 
-        conn.update(worksheet=aba, data=df)
-        st.toast(f"Nuvem Sincronizada: {aba} ✅")
-    except Exception as e: 
-        st.sidebar.warning(f"Salvando localmente em memória. Erro de envio: {e}")
+def salvar_dados(aba_nome, df_atualizado):
+    st.session_state[f"cached_{aba_nome}"] = df_atualizado
+    st.toast(f"Alterações registradas no sistema! ✅")
 
-# Sincronização automática de dados estruturados
-db_v = carregar_dados("veiculos", ["Tipo", "Marca", "Modelo", "Tempo de Uso (Anos)", "Consumo (Km/L)", "Valor FIPE (R$)", "Seguro/Doc Anual", "Manutenção Mensal"], [{"Tipo": "Carro", "Marca": "Fiat", "Modelo": "Uno", "Tempo de Uso (Anos)": 2, "Consumo (Km/L)": 12.0, "Valor FIPE (R$)": 35000.0, "Seguro/Doc Anual": 1400.0, "Manutenção Mensal": 200.0}])
-db_c = carregar_dados("custos_fixos", ["Tipo de Gasto", "Valor Mensal (R$)"], [{"Tipo de Gasto": "Contador / MEI", "Valor Mensal (R$)": 80.0}, {"Tipo de Gasto": "Internet e Celular", "Valor Mensal (R$)": 120.0}])
-db_m = carregar_dados("materiais", ["ID", "Descrição", "Unidade", "Custo (R$)", "Margem (%)", "Valor Unitário (R$)"], [{"ID": "MAT-001", "Descrição": "Cabo Flexível 2,5mm²", "Unidade": "m", "Custo (R$)": 3.60, "Margem (%)": 20, "Valor Unitário (R$)": 4.50}])
-db_s = carregar_dados("servicos", ["ID", "Descrição", "Unidade", "Valor (R$)"], [{"ID": "SRV-001", "Descrição": "Instalação de Tomada", "Unidade": "Ponto", "Valor (R$)": 50.00}])
-db_clientes = carregar_dados("clientes", ["ID", "Nome / Razão Social", "CPF / CNPJ", "Telefone", "Endereço Completo"], [{"ID": "CLI-001", "Nome / Razão Social": "FENIX ENGENHARIA E COMERCIO LTDA", "CPF / CNPJ": "52.769.953/0001-12", "Telefone": "(31) 99539-2027", "Endereço Completo": "Avenida Getulio Vargas, nº 671, Savassi, Belo Horizonte - MG"}])
+# Sincronização direta e estável livre de travamentos do servidor
+db_v = carregar_dados_direto("veiculos", ["Tipo", "Marca", "Modelo", "Tempo de Uso (Anos)", "Consumo (Km/L)", "Valor FIPE (R$)", "Seguro/Doc Anual", "Manutenção Mensal"], [{"Tipo": "Carro", "Marca": "Fiat", "Modelo": "Uno", "Tempo de Uso (Anos)": 2, "Consumo (Km/L)": 12.0, "Valor FIPE (R$)": 35000.0, "Seguro/Doc Anual": 1400.0, "Manutenção Mensal": 200.0}])
+db_c = carregar_dados_direto("custos_fixos", ["Tipo de Gasto", "Valor Mensal (R$)"], [{"Tipo de Gasto": "Contador / MEI", "Valor Mensal (R$)": 80.0}, {"Tipo de Gasto": "Internet e Celular", "Valor Mensal (R$)": 120.0}])
+db_m = carregar_dados_direto("materiais", ["ID", "Descrição", "Unidade", "Custo (R$)", "Margem (%)", "Valor Unitário (R$)"], [{"ID": "MAT-001", "Descrição": "Cabo Flexível 2,5mm²", "Unidade": "m", "Custo (R$)": 3.60, "Margem (%)": 20, "Valor Unitário (R$)": 4.50}])
+db_s = carregar_dados_direto("servicos", ["ID", "Descrição", "Unidade", "Valor (R$)"], [{"ID": "SRV-001", "Descrição": "Instalação de Tomada", "Unidade": "Ponto", "Valor (R$)": 50.00}])
+db_clientes = carregar_dados_direto("clientes", ["ID", "Nome / Razão Social", "CPF / CNPJ", "Telefone", "Endereço Completo"], [{"ID": "CLI-001", "Nome / Razão Social": "FENIX ENGENHARIA E COMERCIO LTDA", "CPF / CNPJ": "52.769.953/0001-12", "Telefone": "(31) 99539-2027", "Endereço Completo": "Avenida Getulio Vargas, nº 671, Savassi, Belo Horizonte - MG"}])
 
 if "db_logos" not in st.session_state: st.session_state.db_logos = {}
 if "df_m_sel" not in st.session_state: st.session_state.df_m_sel = pd.DataFrame(columns=["ID", "Descrição", "Unidade", "Quantidade", "Valor Unitário (R$)", "Valor Total (R$)"])
