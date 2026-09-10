@@ -8,6 +8,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
+from PIL import Image
 
 # Configuração da página para Desktop e Mobile
 st.set_page_config(page_title="Orçamentos Construção Pro", page_icon="🏗️", layout="centered")
@@ -55,7 +56,7 @@ if "df_materiais_orcamento" not in st.session_state:
 
 # --- FLUXO PRINCIPAL DO APLICATIVO ---
 st.title("🏗️ Orçamentos Construção Pro")
-st.caption("Versão Final - Sistema Completo com Cadastros, Ajudantes e Validação GOV")
+st.caption("Versão Final Corrigida - Sistema Completo com Cadastros, Logomarca e Validação GOV")
 
 # Criação das Abas do Aplicativo
 aba_orc, aba_serv, aba_mat, aba_veic, aba_calc = st.tabs([
@@ -124,7 +125,6 @@ with aba_calc:
     st.header("Descubra o Valor da sua Hora")
     custo_fixo_geral = st.number_input("Custos fixos mensais de escritório (MEI, internet, fone, seguros):", min_value=0.0, value=500.0, step=50.0)
     
-    # Busca dinamicamente os valores salvos na aba veículo
     veh_data = st.session_state.db_veiculo
     depreciacao_mensal = (veh_data["valor_mercado"] * 0.10) / 12
     cadastro_mensal = veh_data["impostos_anual"] / 12
@@ -152,31 +152,33 @@ with aba_calc:
 # --- ABA 1: GERADOR DE ORÇAMENTO MULTIUSO ---
 with aba_orc:
     st.header("Identificação do Projeto")
+    
+    # Campo para incluir a logo da empresa no PDF
+    logo_upload = st.file_uploader("Upload da Logomarca da Empresa (Para o PDF - Opcional):", type=["png", "jpg", "jpeg"])
+    
     col_cli1, col_cli2 = st.columns(2)
     with col_cli1:
-        nome_cliente = st.text_input("Nome do Cliente / Empresa:")
+        nome_cliente = st.text_input("Nome do Cliente / Empresa:", value="Fenix Engenharia e Comercio LTDA")
     with col_cli2:
-        tipo_obra = st.selectbox("Segmento da Obra:", ["Construção Geral", "Elétrica", "Hidráulica", "Pintura / Acabamento", "Alvenaria / Estruturas", "Gesso / Drywall"])
+        tipo_obra = st.selectbox("Segmento da Obra:", ["Construção Geral", "Elétrica", "Hidráulica", "Pintura / Acabamento", "Alvenaria / Estruturas", "Gesso / Drywall"], index=1)
         
-    # Dropdown puxando dinamicamente do cadastro de serviços
     opcoes_servicos = list(st.session_state.db_servicos["Serviço"].values)
     servico_selecionado = st.selectbox("Selecione o Serviço Cadastrado:", opcoes_servicos)
     servico_principal = st.text_input("Ajuste a descrição do escopo se necessário:", value=servico_selecionado)
     
-    nome_responsavel = st.text_input("Nome do Responsável Técnico (Para Assinatura GOV):", value="Responsável Técnico")
+    nome_responsavel = st.text_input("Nome do Responsável Técnico (Para Assinatura GOV):", value="Ronilson Richardson Fragoso de Souza")
 
     st.write("---")
     st.header("👷 Quantificação da Mão de Obra")
     tipo_cobranca = st.selectbox("Critério de precificação:", ["Por Empreitada / Ponto", "Por Hora Técnica"])
 
-    # Encontra o preço padrão cadastrado para sugerir no campo
     preco_sugerido_base = st.session_state.db_servicos[st.session_state.db_servicos["Serviço"] == servico_selecionado]["Preço Padrão"].values[0]
 
     valor_servico = 0.0
     if tipo_cobranca == "Por Empreitada / Ponto":
         col_srv1, col_srv2 = st.columns(2)
         with col_srv1:
-            qtd_pontos = st.number_input("Quantidade de Unidades/Pontos/M²:", min_value=1.0, value=1.0)
+            qtd_pontos = st.number_input("Quantidade de Unidades/Pontos/M²:", min_value=1.0, value=10.0)
         with col_srv2:
             preco_ponto = st.number_input("Preço por Unidade (R$):", min_value=0.0, value=float(preco_sugerido_base))
         valor_servico = qtd_pontos * preco_ponto
@@ -186,7 +188,3 @@ with aba_orc:
             qtd_horas = st.number_input("Horas estimadas de execução:", min_value=0.5, value=4.0)
         with col_hr2:
             default_preco_hora = st.session_state.get("preco_hora_salvado", 60.0)
-            preco_hora = st.number_input("Valor da hora técnica (R$):", min_value=0.0, value=default_preco_hora)
-        valor_servico = qtd_horas * preco_hora
-
-
