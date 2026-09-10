@@ -46,7 +46,7 @@ if "db_materiais" not in st.session_state:
 
 if "db_veiculos" not in st.session_state:
     st.session_state.db_veiculos = pd.DataFrame([
-        {"Tipo": "Carro", "Marca": "Fiat", "Modelo": "Uno Way", "Valor (R$)": 35000.0, "IPVA/Licenc. Anual": 1400.0}
+        {"Tipo": "Carro", "Marca": "Fiat", "Modelo": "Uno Way", "Valor (R$)": 35000.0, "IPVA/Licenc. Anual": 1400.0, "Tempo de Posse (Anos)": 2}
     ])
 
 if "df_materiais_orcamento" not in st.session_state:
@@ -111,11 +111,11 @@ with aba_veic:
         with col_v1:
             v_tipo = st.selectbox("Tipo do Veículo:", ["Carro", "Moto", "Caminhão", "Utilitário / Van"])
             v_marca = st.text_input("Marca (ex: Chevrolet, Honda):")
+            v_tempo = st.number_input("Tempo que estou com o veículo (Em Anos):", min_value=0, max_value=50, value=1, step=1)
         with col_v2:
             v_modelo = st.text_input("Modelo (ex: Onix, Titan):")
             v_valor = st.number_input("Valor de Mercado (Tabela FIPE - R$):", min_value=0.0, step=1000.0, value=25000.0)
-            
-        v_anual_imposto = st.number_input("Custos Anuais de Cadastro (IPVA + Licenciamento Anual - R$):", min_value=0.0, step=100.0, value=1500.0)
+            v_anual_imposto = st.number_input("Custos Anuais de Cadastro (IPVA + Licenciamento Anual - R$):", min_value=0.0, step=100.0, value=1500.0)
         
         if st.form_submit_button("💾 Salvar Veículo na Frota"):
             if v_marca and v_modelo:
@@ -124,14 +124,15 @@ with aba_veic:
                     "Marca": v_marca, 
                     "Modelo": v_modelo, 
                     "Valor (R$)": v_valor, 
-                    "IPVA/Licenc. Anual": v_anual_imposto
+                    "IPVA/Licenc. Anual": v_anual_imposto,
+                    "Tempo de Posse (Anos)": v_tempo
                 }])
                 st.session_state.db_veiculos = pd.concat([st.session_state.db_veiculos, novo_v], ignore_index=True)
                 st.success(f"Veículo {v_modelo} adicionado com sucesso!")
                 st.rerun()
 
     st.subheader("Frota Registrada e Salva")
-    st.write("Você pode editar os valores de mercado ou impostos direto nas células da tabela abaixo:")
+    st.write("Você pode editar os dados diretamente nas células da tabela abaixo:")
     st.session_state.db_veiculos = st.data_editor(st.session_state.db_veiculos, use_container_width=True, num_rows="dynamic")
 
 # --- ABA 5: CALCULADORA DE HORA TÉCNICA OPERACIONAL ---
@@ -186,12 +187,3 @@ with aba_orc:
     servico_principal = st.text_input("Ajuste a descrição do escopo se necessário:", value=servico_selecionado)
     
     nome_responsavel = st.text_input("Nome do Responsável Técnico (Para Assinatura GOV):", value="Ronilson Richardson Fragoso de Souza")
-
-    st.write("---")
-    st.header("👷 Quantificação da Mão de Obra")
-    tipo_cobranca = st.selectbox("Critério de precificação:", ["Por Empreitada / Ponto", "Por Hora Técnica"])
-    
-    valor_servico = 0.0
-    if tipo_cobranca == "Por Empreitada / Ponto": preco_sugerido_base = st.session_state.db_servicos[st.session_state.db_servicos["Serviço"] == servico_selecionado]["Preço Padrão"].valuescol_srv1, col_srv2 = st.columns(2)
-    with col_srv1: qtd_pontos = st.number_input("Quantidade de Unidades/Pontos/M²:", min_value=1.0, value=10.0)
-    with col_srv2: preco_ponto = st.number_input("Preço por Unidade (R$):", min_value=0.0, value=float(preco_sugerido_base))
