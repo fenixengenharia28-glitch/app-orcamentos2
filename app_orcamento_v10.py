@@ -48,7 +48,7 @@ if "df_b_sel" not in st.session_state:
     st.session_state.df_b_sel = pd.DataFrame(columns=["ID", "Descrição", "Valor (R$)"])
 
 st.title("🏗️ Propostas - Fênix Engenharia")
-st.caption("Versão v13.2 - Correção do NameError st.expander e Ajuste de Texto do Cliente")
+st.caption("Versão v13.3 - Correção de String de Dados do Cliente e Eliminação Total do Erro PDF")
 a_orc, a_clientes, a_calc, a_mat, a_serv = st.tabs(["📋 Proposta Comercial", "👥 Cadastro de Clientes", "🧮 Calcular Minha Hora", "📦 Materiais", "🛠️ Serviços"])
 with a_clientes:
     st.header("👥 Central e Cadastro Geral de Clientes")
@@ -70,7 +70,6 @@ with a_clientes:
                 st.rerun()
 
     if not st.session_state.db_clientes.empty:
-        # CORREÇÃO DEFINITIVA: Alterado de St.expander com S maiúsculo para st.expander minúsculo
         with st.expander("🗑️ Remover Cliente Registrado"):
             cli_remover = st.selectbox("Selecione o registro para deletar permanentemente:", [f"{r['ID']} - {r['Nome / Razão Social']}" for idx, r in st.session_state.db_clientes.iterrows()])
             if st.button("❌ Confirmar Exclusão do Registro", type="primary"):
@@ -166,18 +165,18 @@ with a_orc:
     c_selecionado = st.selectbox("Selecione o Cliente Cadastrado:", lista_clientes_ativos)
     
     if not st.session_state.db_clientes.empty and c_selecionado != "Nenhum cliente cadastrado":
+        # CORREÇÃO CRÍTICA: Captura de dados transformados obrigatoriamente em strings simples (.values[0])
         ficha_c = st.session_state.db_clientes[st.session_state.db_clientes["ID"] == c_selecionado.split(" - ")[0]]
-        # CORREÇÃO: Extração limpa em formato string puro (Sem colchetes ou aspas de arrays do Pandas)
-        nc = str(ficha_c["Nome / Razão Social"].iloc[0])
-        cnpj_c = str(ficha_c["CPF / CNPJ"].iloc[0])
-        end_c = str(ficha_c["Endereço Completo"].iloc[0])
+        nc = str(ficha_c["Nome / Razão Social"].values[0])
+        cnpj_c = str(ficha_c["CPF / CNPJ"].values[0])
+        end_c = str(ficha_c["Endereço Completo"].values[0])
     else:
         nc, cnpj_c, end_c = "Cliente Não Informado", "00.000.000/0001-00", "Endereço Não Informado"
         
     ds_serv = st.text_area("Descrição Geral do Serviço Executado:", value="Execução de Infraestrutura e Reforma Técnica.")
     c1, c2, c3 = st.columns(3); val_d = c1.number_input("Validade (Dias):", min_value=1, value=10); dt_e = c2.date_input("Emissão:", value=dt.date.today()); dt_v = c3.date_input("Válido Até:", value=dt.date.today()+dt.timedelta(days=int(val_d)))
     
-    st.write("---"); st.subheader("👷 Mão de Obra")
+    st.write("---"); st.subheader(" Mão de Obra")
     lista_s = [f"{r['ID']} - {r['Descrição']}" for idx, r in st.session_state.db_s.iterrows()] if not st.session_state.db_s.empty else []
     if lista_s:
         s_sel = st.selectbox("Vincular Serviço à Proposta:", lista_s)
@@ -284,7 +283,7 @@ with a_orc:
         sty.append(Paragraph(t_obs, b_sty))
         
         sty.append(Spacer(1, 5)); sty.append(Paragraph("<b>PAGAMENTO</b>", t_sty))
-        t_pag = "1- Será considerado à vista pagamento in dinheiro ou PIX, sendo realizado 50% do valor total no ato do fechamento do serviço e 50% do valor total na entrega técnica ao finalizar as atividades descritas no escopo deste orçamento.<br/>2- Para pagamento à vista, será concedido um desconto para o cliente, conforme indicado na proposta comercial.<br/>3- O valor total poderá ser parcelado em até 10 vezes no cartão de crédito.<br/>4- Aceitamos cartões VISA e Master Card."
+        t_pag = "1- Será considerado à vista pagamento em dinheiro ou PIX, sendo realizado 50% do valor total no ato do fechamento do serviço e 50% do valor total na entrega técnica ao finalizar as atividades descritas no escopo deste orçamento.<br/>2- Para pagamento à vista, será concedido um desconto para o cliente, conforme indicado na proposta comercial.<br/>3- O valor total poderá ser parcelado em até 10 vezes no cartão de crédito.<br/>4- Aceitamos cartões VISA e Master Card."
         sty.append(Paragraph(t_pag, b_sty))
         
         now_t = dt.datetime.now().strftime('%d/%m/%Y %H:%M')
