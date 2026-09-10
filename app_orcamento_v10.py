@@ -3,6 +3,7 @@ import pandas as pd
 import datetime as dt
 import hashlib
 import qrcode
+import urllib.parse
 from io import BytesIO
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
@@ -12,12 +13,14 @@ from PIL import Image
 
 st.set_page_config(page_title="Fênix Engenharia", page_icon="🏗️", layout="centered")
 
+SPREADSHEET_ID = "1n5Tn6N-K4s0i17tSra0mrGSh49g3SRnz8B0jobYtods"
+
 # Função nativa e ultra-leve para ler as abas do Google Planilhas sem travar dependências
 def carregar_dados_direto(aba_nome, colunas_padrao, dados_padrao=[]):
     if f"cached_{aba_nome}" not in st.session_state:
         try:
-            url_planilha = "https://google.com" + aba_nome
-            df = pd.read_csv(url_planilha)
+            url = f"https://google.com{SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet={aba_nome}"
+            df = pd.read_csv(url)
             if df.empty:
                 df = pd.DataFrame(dados_padrao, columns=colunas_padrao)
             st.session_state[f"cached_{aba_nome}"] = df
@@ -27,7 +30,7 @@ def carregar_dados_direto(aba_nome, colunas_padrao, dados_padrao=[]):
 
 def salvar_dados(aba_nome, df_atualizado):
     st.session_state[f"cached_{aba_nome}"] = df_atualizado
-    st.toast(f"Alterações registradas no sistema! ✅")
+    st.toast(f"Alterações registradas na memória ativa! ✅")
 
 # Carregamento automático e estável das tabelas operacionais
 db_v = carregar_dados_direto("veiculos", ["Tipo", "Marca", "Modelo", "Tempo de Uso (Anos)", "Consumo (Km/L)", "Valor FIPE (R$)", "Seguro/Doc Anual", "Manutenção Mensal"], [{"Tipo": "Carro", "Marca": "Fiat", "Modelo": "Uno", "Tempo de Uso (Anos)": 2, "Consumo (Km/L)": 12.0, "Valor FIPE (R$)": 35000.0, "Seguro/Doc Anual": 1400.0, "Manutenção Mensal": 200.0}])
@@ -67,7 +70,6 @@ with a_clientes:
                 salvar_dados("clientes", st.session_state.cached_clientes); st.rerun()
         df_c_editado = st.data_editor(st.session_state.cached_clientes, use_container_width=True, num_rows="dynamic")
         if not df_c_editado.equals(st.session_state.cached_clientes): salvar_dados("clientes", df_c_editado)
-
 with a_calc:
     st.header("🧮 Engenharia de Custos e Formação de Preço")
     sd = st.number_input("Meta de Pró-labore mensal desejado (R$):", min_value=0.0, value=4000.0)
@@ -121,7 +123,7 @@ with a_calc:
     
     sl_h = sd / ht if ht > 0 else 0.0; c_op_h = cm + cf_h; h_bruto = sl_h + c_op_h; h_fin = h_bruto / (1 - (ml / 100)) if ml < 100 else h_bruto
     st.subheader("📊 Demonstrativo Detalhado do Valor por Hora")
-    col1, col2 = st.columns(2); col1.metric("Valor da sua Hora de Trabalho Líquida", f"R$ {sl_h:.2f}/h"); col2.metric("Valor dos Custos Operacionais por Hora", f"R$ {c_op_h:.2f}/h")
+    col1, col2 = st.columns(2); col1.metric("Sua Hora Líquida", f"R$ {sl_h:.2f}/h"); col2.metric("Custos Operacionais/h", f"R$ {c_op_h:.2f}/h")
     st.markdown(f"### 🎯 Preço Final Combinado com Margem: **R$ {h_fin:.2f}/h**")
     if st.button("🚀 Sincronizar e Gravar Preço da Hora no Sistema"): 
         st.session_state["pr_h_f"] = round(h_fin, 2); st.success("Preço da hora gravado!")
@@ -152,10 +154,10 @@ with a_orc:
     st.subheader("📋 Configuração da Proposta Comercial - FÊNIX ENGENHARIA E COMERCIO LTDA")
     col_l1, col_l2 = st.columns(2)
     with col_l1:
-        logo_upload = st.file_uploader("Suba uma nova Logomarca para salvar na nuvem:", type=["png", "jpg", "jpeg"])
+        logo_upload = st.file_uploader("Suba uma nova Logomarca:", type=["png", "jpg", "jpeg"])
         if logo_upload is not None: st.session_state.db_logos[logo_upload.name] = logo_upload.read(); st.success("Logo salva!")
     with col_l2:
-        logo_selecionada = st.selectbox("Selecione a logo ativa do orçamento:", list(st.session_state.db_logos.keys()) if st.session_state.db_logos else ["Nenhuma logo salva"])
+        logo_selecionada = st.selectbox("Selecione a logo ativa:", list(st.session_state.db_logos.keys()) if st.session_state.db_logos else ["Nenhuma logo salva"])
     logo_final_bytes = st.session_state.db_logos.get(logo_selecionada) if logo_selecionada != "Nenhuma logo salva" else None
     
     wpp_num = st.text_input("WhatsApp para QR Code (Apenas Números com DDD):", value="31995392027")
@@ -163,26 +165,25 @@ with a_orc:
     c_selecionado = st.selectbox("Selecione o Cliente do Faturamento:", lista_clientes_ativos)
     
     if not st.session_state.cached_clientes.empty and c_selecionado != "Nenhum cliente cadastrado":
-        id_real_c = c_selecionado.split(" - ")[0]
+        id_real_c = c_selecionado.split(" - ")
         ficha_c = st.session_state.cached_clientes[st.session_state.cached_clientes["ID"] == id_real_c]
         if not ficha_c.empty:
-            nc = str(ficha_c["Nome / Razão Social"].values[0]); cnpj_c = str(ficha_c["CPF / CNPJ"].values[0]); end_c = str(ficha_c["Endereço Completo"].values[0])
+            nc = str(ficha_c["Nome / Razão Social"].values); cnpj_c = str(ficha_c["CPF / CNPJ"].values); end_c = str(ficha_c["Endereço Completo"].values)
         else: nc, cnpj_c, end_c = "Não Informado", "00.000.000/0001-00", "Não Informado"
     else: nc, cnpj_c, end_c = "Não Informado", "00.000.000/0001-00", "Não Informado"
         
     ds_serv = st.text_area("Descrição Geral Técnica dos Serviços Executados:", value="Execução de Infraestrutura e Reforma Técnica.")
     c1, c2, c3 = st.columns(3); val_d = c1.number_input("Validade (Dias):", min_value=1, value=10); dt_e = c2.date_input("Emissão:", value=dt.date.today()); dt_v = c3.date_input("Válido Até:", value=dt.date.today()+dt.timedelta(days=int(val_d)))
-    
-    st.write("---"); st.subheader("👷 Mão de Obra")
+    st.write("---"); st.subheader(" Mão de Obra")
     lista_s = [f"{r['ID']} - {r['Descrição']}" for idx, r in st.session_state.cached_servicos.iterrows()] if not st.session_state.cached_servicos.empty else []
     if lista_s:
         s_sel = st.selectbox("Vincular Serviço à Proposta:", lista_s)
         tipo_cobranca_mo = st.selectbox("Critério de Faturamento da Mão de Obra:", ["Por Empreitada / Ponto", "Por Hora Técnica"])
         q_srv_solicitada = st.number_input("Quantidade (Ponto ou Hora):", min_value=1.0, value=1.0, step=0.5)
         if st.button("➕ Vincular Serviço Técnico"):
-            item_filtrado_s = st.session_state.cached_servicos[st.session_state.cached_servicos["ID"] == s_sel.split(" - ")[0]]
+            item_filtrado_s = st.session_state.cached_servicos[st.session_state.cached_servicos["ID"] == s_sel.split(" - ")]
             if not item_filtrado_s.empty:
-                it_s = item_filtrado_s.iloc[0]
+                it_s = item_filtrado_s.iloc
                 val_unit_mo = float(it_s["Valor (R$)"]) if tipo_cobranca_mo == "Por Empreitada / Ponto" else float(st.session_state.get("pr_h_f", 60.0))
                 st.session_state.df_s_sel = pd.concat([st.session_state.df_s_sel, pd.DataFrame([{"ID": it_s["ID"], "Descrição": f"{it_s['Descrição']} ({tipo_cobranca_mo.split()[-1]})", "Quantidade": q_srv_solicitada, "Valor Unitário (R$)": val_unit_mo, "Valor Total (R$)": q_srv_solicitada * val_unit_mo}])], ignore_index=True); st.rerun()
     if not st.session_state.df_s_sel.empty:
@@ -196,9 +197,9 @@ with a_orc:
     if lista_m:
         m_sel = st.selectbox("Vincular Material à Proposta:", lista_m); q_sol = st.number_input("Quantidade Insumo Requerida:", min_value=1, value=1)
         if st.button("➕ Vincular Material Almoxarifado"):
-            item_filtrado_m = st.session_state.cached_materiais[st.session_state.cached_materiais["ID"] == m_sel.split(" - ")[0]]
+            item_filtrado_m = st.session_state.cached_materiais[st.session_state.cached_materiais["ID"] == m_sel.split(" - ")]
             if not item_filtrado_m.empty:
-                it_m = item_filtrado_m.iloc[0]
+                it_m = item_filtrado_m.iloc
                 st.session_state.df_m_sel = pd.concat([st.session_state.df_m_sel, pd.DataFrame([{"ID": it_m["ID"], "Descrição": it_m["Descrição"], "Unidade": it_m["Unidade"], "Quantidade": q_sol, "Valor Unitário (R$)": it_m["Valor Unitário (R$)"], "Valor Total (R$)": q_sol * it_m["Valor Unitário (R$)"]}])], ignore_index=True); st.rerun()
     if not st.session_state.df_m_sel.empty:
         df_me_edit = st.data_editor(st.session_state.df_m_sel, use_container_width=True)
@@ -214,6 +215,7 @@ with a_orc:
     t_bon = st.session_state.df_b_sel["Valor (R$)"].sum() if not st.session_state.df_b_sel.empty else 0.0
     if t_bon > 0: st.session_state.df_b_sel = st.data_editor(st.session_state.df_b_sel, use_container_width=True)
 
+    st.write("---"); st.subheader("📈 Fechamento Consolidado")
     ds_s = st.slider("Desconto Comercial Aplicado (%):", 0, 30, 0)
     sub_bruto = t_mo + t_mat; v_desc = sub_bruto * (ds_s / 100); tot_cartao = sub_bruto * 1.08; tot_vista = max(0.0, sub_bruto - t_bon - v_desc)
     st.warning(f"💳 **TOTAL A PAGAR (ATÉ 10X CARTÃO): R$ {tot_cartao:.2f}**"); st.success(f"💰 **TOTAL À VISTA (DINHEIRO OU PIX): R$ {tot_vista:.2f}**")
@@ -231,7 +233,7 @@ with a_orc:
         qr = qrcode.QRCode(version=1, box_size=2, border=0); qr.add_data(q_url); qr.make(fit=True); qb = BytesIO(); qr.make_image(fill_color="black", back_color="white").save(qb, format="PNG"); qb.seek(0)
         t_hdr = Table([[RLImage(BytesIO(qb.getvalue()), width=45, height=45), Paragraph(tx_emp, ParagraphStyle('C', parent=s['Normal'], fontSize=8, leading=11, alignment=1)), l_bx]], colWidths=(60, 350, 110))
         t_hdr.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE')])); sty.append(t_hdr); sty.append(Spacer(1, 10))
-        sty.append(Paragraph(f"<b>Descrição do Serviço:</b> {ds_serv}<br/><b>Validade:</b> {val_d} dias | <b>Emissão:</b> {dt_e.strftime('%d/%m/%Y')} | <b>Válido Até:</b> {dt_v.strftime('%d/%m/%Y')}", b_sty))
+        sty.append(Paragraph(f"<b>Descrição Técnica do Serviço:</b> {ds_serv}<br/><b>Validade:</b> {val_d} dias | <b>Emissão:</b> {dt_e.strftime('%d/%m/%Y')} | <b>Válido Até:</b> {dt_v.strftime('%d/%m/%Y')}", b_sty))
         sty.append(Spacer(1, 5)); sty.append(Paragraph(f"<b>Cliente / Empresa:</b> {nc} | <b>CPF / CNPJ:</b> {cnpj_c}<br/><b>Endereço Técnico da Obra:</b> {end_c}", b_sty)); sty.append(Spacer(1, 8))
         
         sty.append(Paragraph("<b>Mão de Obra</b>", t_sty))
@@ -254,23 +256,23 @@ with a_orc:
         t4 = Table(d_ch, colWidths=(350, 170)); t4.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')), ('FONTNAME', (0,-2), (1,-1), 'Helvetica-Bold'), ('BACKGROUND', (0,-2), (0,-2), colors.HexColor('#FED7D7')), ('BACKGROUND', (0,-1), (1,-1), colors.HexColor('#C6F6D5')), ('PADDING', (0,0), (-1,-1), 4)])); sty.append(t4)
         
         sty.append(Spacer(1, 10)); sty.append(Paragraph("<b>Garantia</b>", t_sty))
-        t_gar = "O presente documento concede ao proprietário garantia condicional de 06 meses sobre os serviços de instalação realizados e registrados neste documento sob as seguintes condições:<br/>1- Durante este período o proprietário não poderá realizar demais intervenções nas instalações realizadas utilizando outra mão de obra de eletricistas terceiros, caso precise de algum reparo, acionar nossa empresa para tal.<br/>2- O painel elétrico será lacrado e não poderá ser rompido o lacre sem que seja formalizado junto à nossa empresa.<br/><br/>O presente documento concede ao proprietário garantia condicional de 06 meses sobre os materiais de instalação realizados e registrados neste documento sob as seguintes condições:<br/>1- Os equipamentos instalados nas tomadas devem ser compatíveis em valores de corrente elétrica com as especificações das tomadas.<br/>2- Não serão considerados os danos provenientes da utilização de conectores de tomada tipo \"T\", Benjamim, Extensões e outros dispositivos não certificados pelo INMETRO que possam causar sobrecarga na mesma."
-        sty.append(Paragraph(t_gar, b_sty))
+        t_garantia = "O presente documento concede ao proprietário garantia condicional de 06 meses sobre os serviços de instalação realizados e registrados neste documento sob as seguintes condições:<br/>1- Durante este período o proprietário não poderá realizar demais intervenções nas instalações realizadas utilizando outra mão de obra de eletricistas terceiros, caso precise de algum reparo, acionar nossa empresa para tal.<br/>2- O painel elétrico será lacrado e não poderá ser rompido o lacre sem que seja formalizado junto à nossa empresa.<br/><br/>O presente documento concede ao proprietário garantia condicional de 06 meses sobre os materiais de instalação realizados e registrados neste documento sob as seguintes condições:<br/>1- Os equipamentos instalados nas tomadas devem ser compatíveis em valores de corrente elétrica com as especificações das tomadas.<br/>2- Não serão considerados os danos provenientes da utilização de conectores de tomada tipo \"T\", Benjamim, Extensões e outros dispositivos não certificados pelo INMETRO que possam causar sobrecarga na mesma."
+        sty.append(Paragraph(t_garantia, b_sty))
+        sty.append(Spacer(1, 5)); sty.append(Paragraph("<b>OBSERVAÇÕES</b>", t_sty))
+        t_obs = "1- Caso seja necessário a execução de demais atividades não listadas neste orçamento, será criado outro orçamento para estes serviços.<br/>2- Caso, durante a execução das atividades, seja necessário a compra de materiais não contemplados nesta lista, por solicitação do cliente ou por terem sido subestimados, os valores destes materiais extras serão passados ao cliente junto das justificativas e este valor deverá ser cobrado à parte."
+        sty.append(Paragraph(t_obs, b_sty))
+        sty.append(Spacer(1, 5)); sty.append(Paragraph("<b>PAGAMENTO</b>", t_sty))
+        t_pag = "1- Será considerado à vista pagamento em dinheiro ou PIX, sendo realizado 50% do valor total no ato do fechamento do serviço e 50% do valor total na entrega técnica ao finalizar as atividades descritas no escopo deste orçamento.<br/>2- Para pagamento à vista, será concedido um desconto para o cliente, conforme indicado na proposta comercial.<br/>3- O valor total poderá ser parcelado em até 10 vezes no cartão de crédito.<br/>4- Aceitamos cartões VISA e Master Card."
+        sty.append(Paragraph(t_pag, b_sty))
         
-        sty.append(Paragraph("<b>OBSERVAÇÕES</b>", t_sty))
-        t_ob = "1- Caso seja necessário a execução de demais atividades não listadas neste orçamento, será criado outro orçamento para estes serviços.<br/>2- Caso, durante a execução das atividades, seja necessário a compra de materiais não contemplados nesta lista, por solicitação do cliente ou por terem sido subestimados, os valores destes materiais extras serão passados ao cliente junto das justificativas e este valor deverá ser cobrado à parte."
-        sty.append(Paragraph(t_ob, b_sty))
-        
-        sty.append(Paragraph("<b>PAGAMENTO</b>", t_sty))
-        t_pa = "1- Será considerado à vista pagamento em dinheiro ou PIX, sendo realizado 50% do valor total no ato do fechamento do serviço e 50% do valor total na entrega técnica ao finalizar as atividades descritas no escopo deste orçamento.<br/>2- Para pagamento à vista, será concedido um desconto para o cliente, conforme indicado na proposta comercial.<br/>3- O valor total poderá ser parcelado em até 10 vezes no cartão de crédito.<br/>4- Aceitamos cartões VISA e Master Card."
-        sty.append(Paragraph(t_pa, b_sty))
-        
-        msg = f"<b>Assinado digitalmente por:</b> RONILSON RICHARDSON FRAGOSO DE SOUZA<br/>Data da Chancelagem: {dt.datetime.now().strftime('%d/%m/%Y %H:%M')} | Padrão: ICP-Brasil Equivalente V2<br/>Chave MD5: {h_val}"
-        tgv = Table([[RLImage(BytesIO(qb.getvalue()), width=50, height=50), Paragraph(msg, ParagraphStyle('G', parent=s['Normal'], fontSize=7.5, leading=10))]], colWidths=(65, 455))
-        tgv.setStyle(TableStyle([('BOX', (0,0), (-1,-1), 1, colors.HexColor('#A0AEC0')), ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F7FAFC')), ('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('PADDING', (0,0), (-1,-1), 5)]))
-        sty.append(Spacer(1, 10)); sty.append(tgv); doc.build(sty); bf.seek(0); return bf.getvalue()
+        now_t = dt.datetime.now().strftime('%d/%m/%Y %H:%M')
+        msg = f"<b>Assinado digitalmente por:</b> RONILSON RICHARDSON FRAGOSO DE SOUZA<br/><b>Data da Chancelagem:</b> {now_t} | <b>Padrão:</b> ICP-Brasil Equivalente V2<br/><b>Chave Identificadora de Autenticidade (MD5):</b> {h_val}"
+        tgv = Table([[RLImage(BytesIO(qb.getvalue()), width=55, height=55), Paragraph(msg, ParagraphStyle('G', parent=s['Normal'], fontSize=7.5, leading=10))]], colWidths=(65, 455))
+        tgv.setStyle(TableStyle([('BOX', (0,0), (-1,-1), 1, colors.HexColor('#A0AEC0')), ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F7FAFC')), ('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('PADDING', (0,0), (-1,-1), 6)]))
+        sty.append(Spacer(1, 15)); sty.append(tgv)
+        doc.build(sty); bf.seek(0); return bf.getvalue()
 
     if st.button("🚀 Chancelar Proposta Comercial"):
-        hv = hashlib.md5(f"{nc}{tot_vista}".encode()).hexdigest(); l_wp = f"https://whatsapp.com{wpp_num}&text=Aprovar%20{hv}"
+        hv = hashlib.md5(f"{nc}{tot_vista}".encode()).hexdigest(); l_wp = f"https://whatsapp.com{wpp_num}&text=Aprovar%20Orcamento%20{hv}"
         pdf = build_pdf_fenix(logo_final_bytes, l_wp, hv)
         st.download_button(label="📥 Baixar Proposta Comercial em PDF", data=pdf, file_name=f"Proposta_Fenix_{nc.replace(' ', '_')}.pdf", mime="application/pdf")
