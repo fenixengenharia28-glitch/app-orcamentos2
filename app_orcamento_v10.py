@@ -12,10 +12,17 @@ if "verificar" in q:
     if st.button("Voltar"): st.query_params.clear(); st.rerun()
     st.stop()
 
-for k, v in {"db_s": pd.DataFrame([{"Serviço": "Instalação de Tomada", "Preço Padrão": 50.0}]), "db_m": pd.DataFrame([{"Material": "Cabo 2,5mm² (m)", "Preço Unitário": 4.50}]), "db_v": pd.DataFrame([{"Tipo": "Carro", "Marca": "Fiat", "Modelo": "Uno", "Valor (R$)": 35000.0, "IPVA Anual": 1400.0, "Anos Posse": 2}]), "df_o": pd.DataFrame(columns=["Item", "Qtd", "Preço Un.", "Total"])}.items():
-    if k not in st.session_state: st.session_state[k] = v
+if "db_s" not in st.session_state:
+    st.session_state.db_s = pd.DataFrame([{"Serviço": "Instalação de Tomada", "Preço Padrão": 50.0}, {"Serviço": "Reforma de QDC", "Preço Padrão": 350.0}])
+if "db_m" not in st.session_state:
+    st.session_state.db_m = pd.DataFrame([{"Material": "Cabo 2,5mm² (m)", "Preço Unitário": 4.50}])
+if "db_v" not in st.session_state:
+    st.session_state.db_v = pd.DataFrame([{"Tipo": "Carro", "Marca": "Fiat", "Modelo": "Uno", "Valor (R$)": 35000.0, "IPVA Anual": 1400.0, "Anos Posse": 2}])
+if "df_o" not in st.session_state:
+    st.session_state.df_o = pd.DataFrame(columns=["Item", "Qtd", "Preço Un.", "Total"])
 
 st.title("🏗️ Orçamentos Construção Pro")
+st.caption("Versão v11.1 Corrige TypeError - Proteção de busca e Frota Completa")
 a_orc, a_serv, a_mat, a_veic, a_calc = st.tabs(["📋 Criar Orçamento", "🛠️ Serviços", "📦 Materiais", "🚗 Veículo", "🧮 Calcular Hora"])
 
 with a_serv:
@@ -41,16 +48,33 @@ with a_calc:
     if st.button("Aplicar Hora"): st.session_state["pr_h"] = round(h_cal, 2); st.info("Sincronizado!")
 
 with a_orc:
-    logo_upload = st.file_uploader("Upload da Logomarca (Opcional):", type=["png", "jpg", "jpeg"]); c1, c2 = st.columns(2); nc = c1.text_input("Cliente:", value="Fenix Engenharia"); to = c2.selectbox("Segmento:", ["Construção Geral", "Elétrica", "Hidráulica", "Pintura"], index=1); sv = st.selectbox("Serviço:", list(st.session_state.db_s["Serviço"].values)); sp = st.text_input("Ajuste o escopo:", value=sv); nr = st.text_input("Responsável Técnico:", value="Ronilson Richardson Fragoso de Souza"); st.write("---"); tc = st.selectbox("Critério:", ["Por Empreitada", "Por Hora"]); v_s = 0.0
+    logo_upload = st.file_uploader("Upload da Logomarca (Opcional):", type=["png", "jpg", "jpeg"]); c1, c2 = st.columns(2); nc = c1.text_input("Cliente:", value="Fenix Engenharia"); to = c2.selectbox("Segmento:", ["Construção Geral", "Elétrica", "Hidráulica", "Pintura"], index=1)
+    
+    lista_s = list(st.session_state.db_s["Serviço"].values) if not st.session_state.db_s.empty else ["Nenhum cadastrado"]
+    sv = st.selectbox("Serviço:", lista_s)
+    sp = st.text_input("Ajuste o escopo:", value=sv)
+    nr = st.text_input("Responsável Técnico:", value="Ronilson Richardson Fragoso de Souza"); st.write("---"); tc = st.selectbox("Critério:", ["Por Empreitada", "Por Hora"]); v_s = 0.0
+    
     if tc == "Por Empreitada":
-        sb = st.session_state.db_s[st.session_state.db_s["Serviço"] == sv]["Preço Padrão"].values; c1, c2 = st.columns(2); qp = c1.number_input("Quantidade:", min_value=1.0, value=10.0); pp = c2.number_input("Preço Unitário (R$):", min_value=0.0, value=float(sb)); v_s = qp * pp
+        filtro_s = st.session_state.db_s[st.session_state.db_s["Serviço"] == sv]
+        sb = filtro_s["Preço Padrão"].values[0] if not filtro_s.empty else 0.0
+        c1, c2 = st.columns(2); qp = c1.number_input("Quantidade:", min_value=1.0, value=10.0); pp = c2.number_input("Preço Unitário (R$):", min_value=0.0, value=float(sb)); v_s = qp * pp
     else: c1, c2 = st.columns(2); qh = c1.number_input("Horas estimadas:", min_value=0.5, value=4.0); ph = c2.number_input("Valor da hora (R$):", min_value=0.0, value=st.session_state.get("pr_h", 60.0)); v_s = qh * ph
+    
     st.write("---"); ta = st.checkbox("Demanda ajudantes?"); c_aj = 0.0
     if ta: c1, c2 = st.columns(2); qa = c1.number_input("Quantidade ajudantes:", min_value=1, value=1); da = c2.number_input("Diária ajudante (R$):", min_value=0.0, value=120.0); nj = st.number_input("Quantidade diárias:", min_value=1, value=1); c_aj = qa * da * nj
     st.write("---"); ob = st.checkbox("Conceder bônus?"); v_b, d_b = 0.0, ""
     if ob: c1, c2 = st.columns(2); d_b = c1.text_input("Descrição Bônus:"); v_b = c2.number_input("Valor Bônus (R$):", min_value=0.0, value=150.0)
-    st.write("---"); im = st.toggle("Somar materiais no preço final?", value=False); m_sel = st.selectbox("Insumo Almoxarifado:", list(st.session_state.db_m["Material"].values)); ms = st.session_state.db_m[st.session_state.db_m["Material"] == m_sel]["Preço Unitário"].values; c1, c2, c3 = st.columns(3); n_m = c1.text_input("Material Obra:", value=m_sel); q_m = c2.number_input("Qtd:", min_value=1, value=1); p_m = c3.number_input("Preço Un (R$):", min_value=0.0, value=float(ms))
+    st.write("---"); im = st.toggle("Somar materiais no preço final?", value=False)
+    
+    lista_m = list(st.session_state.db_m["Material"].values) if not st.session_state.db_m.empty else ["Nenhum cadastrado"]
+    m_sel = st.selectbox("Insumo Almoxarifado:", lista_m)
+    filtro_m = st.session_state.db_m[st.session_state.db_m["Material"] == m_sel]
+    ms = filtro_m["Preço Unitário"].values[0] if not filtro_m.empty else 0.0
+    
+    c1, c2, c3 = st.columns(3); n_m = c1.text_input("Material Obra:", value=m_sel); q_m = c2.number_input("Qtd:", min_value=1, value=1); p_m = c3.number_input("Preço Un (R$):", min_value=0.0, value=float(ms))
     if st.button("➕ Adicionar Material"): st.session_state.df_o = pd.concat([st.session_state.df_o, pd.DataFrame([{"Item": n_m, "Qtd": q_m, "Preço Un.": p_m, "Total": q_m * p_m}])], ignore_index=True)
+    
     t_mat = 0.0
     if not st.session_state.df_o.empty:
         df_e = st.data_editor(st.session_state.df_o, use_container_width=True, num_rows="dynamic"); df_e["Total"] = df_e["Qtd"] * df_e["Preço Un."]; st.session_state.df_o = df_e; t_mat = df_e["Total"].sum()
@@ -70,10 +94,10 @@ with a_orc:
         if ta: d_f.append(["Ajudantes", f"R$ {c_aj:.2f}"])
         d_f.append(["Transporte", f"R$ {c_tr:.2f}"])
         if v_b > 0: d_f.append(["Bônus", f"- R$ {v_b:.2f}"])
-        d_f.append([f"Materiais ({'Inclusos' if im else 'Cliente'})", f"R$ {t_mat:.2f}"]); d_f.append(["TOTAL LÍQUIDO", f"R$ {t_g:.2f}"]); tf = Table(d_f, colWidths=[200, 150]); tf.setStyle(TableStyle([('BACKGROUND', (0,0), (1,0), c.HexColor('#1A365D')), ('TEXTCOLOR', (0,0), (1,0), c.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, c.HexColor('#CBD5E0')), ('FONTNAME', (0,-1), (1,-1), 'Helvetica-Bold'), ('BACKGROUND', (0,-1), (1,-1), c.HexColor('#E2E8F0')), ('PADDING', (0,0), (-1,-1), 5)])); sty.append(tf); sty.append(Spacer(1, 15))
+        d_f.append([f"Materiais ({'Inclusos' if im else 'Cliente'})", f"R$ {t_mat:.2f}"]); d_f.append(["TOTAL LÍQUIDO", f"R$ {t_g:.2f}"]); tf = Table(d_f, colWidths=); tf.setStyle(TableStyle([('BACKGROUND', (0,0), (1,0), c.HexColor('#1A365D')), ('TEXTCOLOR', (0,0), (1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, c.HexColor('#CBD5E0')), ('FONTNAME', (0,-1), (1,-1), 'Helvetica-Bold'), ('BACKGROUND', (0,-1), (1,-1), c.HexColor('#E2E8F0')), ('PADDING', (0,0), (-1,-1), 5)])); sty.append(tf); sty.append(Spacer(1, 15))
         if og: sty.append(Paragraph(f"<b>Notas:</b> {og}", b_s)); sty.append(Spacer(1, 15))
         qr = qrcode.QRCode(version=1, box_size=2, border=1); qr.add_data(v_url); qr.make(fit=True); qi = qr.make_image(fill_color="black", back_color="white"); qb = BytesIO(); qi.save(qb, format="PNG"); qb.seek(0)
-        msg = f"<b>Assinado por:</b> {nr.upper()}<br/><b>Data:</b> {dt.datetime.now().strftime('%d/%m/%Y %H:%M')}<br/><b>Hash MD5:</b> {uh}"; tgv = Table([[RLImage(qb, width=60, height=65), Paragraph(msg, ParagraphStyle('G', parent=s['Normal'], fontSize=7.5, leading=10))]], colWidths=[70, 280]); tgv.setStyle(TableStyle([('BOX', (0,0), (-1,-1), 1, c.HexColor('#A0AEC0')), ('BACKGROUND', (0,0), (-1,-1), c.HexColor('#F7FAFC')), ('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('PADDING', (0,0), (-1,-1), 6)])); sty.append(tgv); doc.build(story=sty); bf.seek(0); return bf.getvalue()
+        msg = f"<b>Assinado por:</b> {nr.upper()}<br/><b>Data:</b> {dt.datetime.now().strftime('%d/%m/%Y %H:%M')}<br/><b>Hash MD5:</b> {uh}"; tgv = Table([[RLImage(qb, width=60, height=65), Paragraph(msg, ParagraphStyle('G', parent=s['Normal'], fontSize=7.5, leading=10))]], colWidths=); tgv.setStyle(TableStyle([('BOX', (0,0), (-1,-1), 1, c.HexColor('#A0AEC0')), ('BACKGROUND', (0,0), (-1,-1), c.HexColor('#F7FAFC')), ('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('PADDING', (0,0), (-1,-1), 6)])); sty.append(tgv); doc.build(story=sty); bf.seek(0); return bf.getvalue()
 
     st.write("---"); c1, c2 = st.columns(2)
     with c1:
