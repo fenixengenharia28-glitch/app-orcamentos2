@@ -44,19 +44,18 @@ if "db_materiais" not in st.session_state:
         {"Material": "Saco de Cimento 50kg CP-II", "Preço Unitário": 38.00}
     ])
 
-if "db_veiculo" not in st.session_state:
-    st.session_state.db_veiculo = {
-        "valor_mercado": 50000.0,
-        "impostos_anual": 2400.0,
-        "anos_permanencia": 5
-    }
+# NOVO: Banco de dados estruturado para salvar múltiplos veículos
+if "db_veiculos" not in st.session_state:
+    st.session_state.db_veiculos = pd.DataFrame([
+        {"Tipo": "Carro", "Marca": "Fiat", "Modelo": "Uno Way", "Valor (R$)": 35000.0, "IPVA/Licenc. Anual": 1400.0}
+    ])
 
 if "df_materiais_orcamento" not in st.session_state:
     st.session_state.df_materiais_orcamento = pd.DataFrame(columns=["Item", "Qtd", "Preço Un.", "Total"])
 
 # --- FLUXO PRINCIPAL DO APLICATIVO ---
 st.title("🏗️ Orçamentos Construção Pro")
-st.caption("Versão Final Corrigida - Sistema Completo com Cadastros, Logomarca e Validação GOV")
+st.caption("Versão v11 - Correção do Bug de Hora Técnica e Frota de Veículos com Salvamento")
 
 # Criação das Abas do Aplicativo
 aba_orc, aba_serv, aba_mat, aba_veic, aba_calc = st.tabs([
@@ -70,7 +69,7 @@ aba_orc, aba_serv, aba_mat, aba_veic, aba_calc = st.tabs([
 # --- ABA 2: CADASTRO DE SERVIÇOS ---
 with aba_serv:
     st.header("🛠️ Catálogo de Serviços Padrão")
-    st.write("Cadastre ou edite seus serviços para que fiquem disponíveis na montagem do orçamento.")
+    st.write("Cadastre seus serviços de referência para a planilha.")
     
     with st.form("cad_servico", clear_on_submit=True):
         novo_serv_nome = st.text_input("Nome do Serviço / Atividade:")
@@ -88,7 +87,7 @@ with aba_serv:
 # --- ABA 3: CADASTRO DE MATERIAIS ---
 with aba_mat:
     st.header("📦 Almoxarifado de Materiais Frequentes")
-    st.write("Alimente sua lista de insumos frequentes com valores de referência.")
+    st.write("Alimente sua lista de insumos com valores de referência.")
     
     with st.form("cad_material", clear_on_submit=True):
         novo_mat_nome = st.text_input("Nome do Insumo / Material:")
@@ -103,34 +102,58 @@ with aba_mat:
     st.subheader("Materiais Cadastrados")
     st.session_state.db_materiais = st.data_editor(st.session_state.db_materiais, use_container_width=True, num_rows="dynamic")
 
-# --- ABA 4: CADASTRO DE VEÍCULO ---
+# --- ABA 4: CADASTRO DE VEÍCULOS (ATUALIZADA) ---
 with aba_veic:
-    st.header("🚗 Parâmetros e Custos de Logística do Veículo")
-    st.write("Defina os custos do veículo para repassá-los de maneira precisa na sua hora operacional.")
+    st.header("🚗 Cadastro e Frota de Veículos da Empresa")
+    st.write("Insira e salve as informações dos veículos utilizados em campo para o cálculo preciso da depreciação estrutural.")
     
-    v_mercado = st.number_input("Valor de Mercado Atual do Veículo (R$):", min_value=0.0, value=st.session_state.db_veiculo["valor_mercado"], step=1000.0)
-    v_impostos = st.number_input("IPVA + Licenciamento Anual Total (R$):", min_value=0.0, value=st.session_state.db_veiculo["impostos_anual"], step=100.0)
-    v_anos = st.number_input("Anos de permanência planejada com o carro:", min_value=1, value=st.session_state.db_veiculo["anos_permanencia"])
-    
-    if st.button("💾 Atualizar Configurações do Carro"):
-        st.session_state.db_veiculo = {
-            "valor_mercado": v_mercado,
-            "impostos_anual": v_impostos,
-            "anos_permanencia": v_anos
-        }
-        st.success("Dados logísticos do veículo salvos!")
+    with st.form("cad_novo_veiculo", clear_on_submit=True):
+        col_v1, col_v2 = st.columns(2)
+        with col_v1:
+            v_tipo = st.selectbox("Tipo do Veículo:", ["Carro", "Moto", "Caminhão", "Utilitário / Van"])
+            v_marca = st.text_input("Marca (ex: Chevrolet, Honda):")
+        with col_v2:
+            v_modelo = st.text_input("Modelo (ex: Onix, Titan):")
+            v_valor = st.number_input("Valor de Mercado (Tabela FIPE - R$):", min_value=0.0, step=1000.0, value=25000.0)
+            
+        v_anual_imposto = st.number_input("Custos Anuais de Cadastro (IPVA + Licenciamento Anual - R$):", min_value=0.0, step=100.0, value=1500.0)
+        
+        if st.form_submit_button("💾 Salvar Veículo na Frota"):
+            if v_marca and v_modelo:
+                novo_v = pd.DataFrame([{
+                    "Tipo": v_tipo, 
+                    "Marca": v_marca, 
+                    "Modelo": v_modelo, 
+                    "Valor (R$)": v_valor, 
+                    "IPVA/Licenc. Anual": v_anual_imposto
+                }])
+                st.session_state.db_veicos = pd.concat([st.session_state.db_veiculos, novo_v], ignore_index=True) if 'db_veicos' in locals() else pd.concat([st.session_state.db_veiculos, novo_v], ignore_index=True)
+                st.session_state.db_veiculos = st.session_state.db_veicos if 'db_veicos' in locals() else pd.concat([st.session_state.db_veiculos, novo_v], ignore_index=True)
+                st.success(f"Veículo {v_modelo} adicionado com sucesso!")
+                st.rerun()
+
+    st.subheader("Frota Registrada e Salva")
+    st.write("Você pode editar os valores de mercado ou impostos direto nas células da tabela abaixo:")
+    st.session_state.db_veiculos = st.data_editor(st.session_state.db_veiculos, use_container_width=True, num_rows="dynamic")
 
 # --- ABA 5: CALCULADORA DE HORA TÉCNICA OPERACIONAL ---
 with aba_calc:
     st.header("Descubra o Valor da sua Hora")
     custo_fixo_geral = st.number_input("Custos fixos mensais de escritório (MEI, internet, fone, seguros):", min_value=0.0, value=500.0, step=50.0)
     
-    veh_data = st.session_state.db_veiculo
-    depreciacao_mensal = (veh_data["valor_mercado"] * 0.10) / 12
-    cadastro_mensal = veh_data["impostos_anual"] / 12
-    custo_veiculo_total_mes = depreciacao_mensal + cadastro_mensal
+    # SOMA DINÂMICA DA DEPRECIAÇÃO E IMPOSTOS DE TODA A FROTA SALVA
+    total_fipe_frota = 0.0
+    total_impostos_frota = 0.0
     
-    st.info(f"🚗 Custos do Carro Calculados: Depreciação (R$ {depreciacao_mensal:.2f}/mês) + Impostos (R$ {cadastro_mensal:.2f}/mês)")
+    if not st.session_state.db_veiculos.empty:
+        total_fipe_frota = st.session_state.db_veiculos["Valor (R$)"].sum()
+        total_impostos_frota = st.session_state.db_veiculos["IPVA/Licenc. Anual"].sum()
+        
+    depreciacao_mensal_frota = (total_fipe_frota * 0.10) / 12
+    cadastro_mensal_frota = total_impostos_frota / 12
+    custo_veiculo_total_mes = depreciacao_mensal_frota + cadastro_mensal_frota
+    
+    st.info(f"🚗 Custos Combinados da Frota Salva ({len(st.session_state.db_veiculos)} veículo(s)): Depreciação (R$ {depreciacao_mensal_frota:.2f}/mês) + Impostos (R$ {cadastro_mensal_frota:.2f}/mês)")
     
     salario_desejado = st.number_input("Meta de Pró-labore mensal líquido (Seu Salário):", min_value=0.0, value=4000.0, step=100.0)
     dias_trabalhados = st.number_input("Dias operacionais efetivos por mês:", min_value=1, max_value=31, value=22)
@@ -153,7 +176,6 @@ with aba_calc:
 with aba_orc:
     st.header("Identificação do Projeto")
     
-    # Campo para incluir a logo da empresa no PDF
     logo_upload = st.file_uploader("Upload da Logomarca da Empresa (Para o PDF - Opcional):", type=["png", "jpg", "jpeg"])
     
     col_cli1, col_cli2 = st.columns(2)
@@ -163,28 +185,9 @@ with aba_orc:
         tipo_obra = st.selectbox("Segmento da Obra:", ["Construção Geral", "Elétrica", "Hidráulica", "Pintura / Acabamento", "Alvenaria / Estruturas", "Gesso / Drywall"], index=1)
         
     opcoes_servicos = list(st.session_state.db_servicos["Serviço"].values)
-    servico_selecionado = st.selectbox("Selecione o Serviço Cadastrado:", opcoes_servicos)
-    servico_principal = st.text_input("Ajuste a descrição do escopo se necessário:", value=servico_selecionado)
-    
-    nome_responsavel = st.text_input("Nome do Responsável Técnico (Para Assinatura GOV):", value="Ronilson Richardson Fragoso de Souza")
-
-    st.write("---")
-    st.header("👷 Quantificação da Mão de Obra")
-    tipo_cobranca = st.selectbox("Critério de precificação:", ["Por Empreitada / Ponto", "Por Hora Técnica"])
-
-    preco_sugerido_base = st.session_state.db_servicos[st.session_state.db_servicos["Serviço"] == servico_selecionado]["Preço Padrão"].values[0]
-
-    valor_servico = 0.0
-    if tipo_cobranca == "Por Empreitada / Ponto":
-        col_srv1, col_srv2 = st.columns(2)
-        with col_srv1:
-            qtd_pontos = st.number_input("Quantidade de Unidades/Pontos/M²:", min_value=1.0, value=10.0)
-        with col_srv2:
-            preco_ponto = st.number_input("Preço por Unidade (R$):", min_value=0.0, value=float(preco_sugerido_base))
-        valor_servico = qtd_pontos * preco_ponto
-    elif tipo_cobranca == "Por Hora Técnica":
-        col_hr1, col_hr2 = st.columns(2)
-        with col_hr1:
-            qtd_horas = st.number_input("Horas estimadas de execução:", min_value=0.5, value=4.0)
-        with col_hr2:
-            default_preco_hora = st.session_state.get("preco_hora_salvado", 60.0)
+servico_selecionado = st.selectbox("Selecione o Serviço Cadastrado:", opcoes_servicos)
+servico_principal = st.text_input("Ajuste a descrição do escopo se necessário:", value=servico_selecionado)
+nome_responsavel = st.text_input("Nome do Responsável Técnico (Para Assinatura GOV):", value="Ronilson Richardson Fragoso de Souza")
+st.write("---")
+st.header("👷 Quantificação da Mão de Obra")tipo_cobranca = st.selectbox("Critério de precificação:", ["Por Empreitada / Ponto", "Por Hora Técnica"])
+valor_servico = 0.0 if tipo_cobranca == "Por Empreitada / Ponto": preco_sugerido_base = st.session_state.db_servicos[st.session_state.db_servicos["Serviço"] == servico_selecionado]["Preço Padrão"].values[0] col_srv1, col_srv2 = st.columns(2) with col_srv1: qtd_pontos = st.number_input("Quantidade de Unidades/Pontos/M²:", min_value=1.0, value=10.0) with col_srv2: preco_ponto = st.number_input("Preço por Unidade (R$):", min_value=0.0, value=float(preco_sugerido_base)) valor_servico = qtd_pontos * preco_ponto elif tipo_cobranca == "Por Hora Técnica": col_hr1, col_hr2 = st.columns(2) with col_hr1: qtd_horas = st.number_input("Horas estimadas de execução:", min_value=0.5, value=4.0) with col_hr2: default_preco_hora = st.session_state.get("preco_hora_salvado", 60.0) preco_hora = st.number_input("Valor da hora técnica (R$):", min_value=0.0, value=default_preco_hora) valor_servico = qtd_horas * preco_horast.write("---")st.header("👥 Dimensionamento de Equipe")tem_ajudante = st.checkbox("O serviço demandará ajudantes?")custo_ajudantes_total = 0.0if tem_ajudante:col_aj1, col_aj2 = st.columns(2)with col_aj1:qtd_ajudantes = st.number_input("Quantidade de ajudantes escalados:", min_value=1, value=1, step=1)with col_aj2:diaria_ajudante = st.number_input("Custo da diária por ajudante (R$):", min_value=0.0, value=120.0, step=10.0)qtd_dias_ajuda = st.number_input("Quantidade de diárias estimadas para os ajudantes:", min_value=1, value=1, step=1)custo_ajudantes_total = qtd_ajudantes * diaria_ajudante * qtd_dias_ajudast.caption(f"ℹ️ Custo total operacional de ajudantes: R$ {custo_ajudantes_total:.2f}")st.write("---")st.header("🎁 Política de Bônus (Dedução Comercial)")oferecer_bonus = st.checkbox("Conceder um serviço bônus dedutível?")valor_bonus = 0.0descricao_bonus = ""if oferecer_bonus:col_bon1, col_bon2 = st.columns(2)with col_bon1:descricao_bonus = st.text_input("Descrição detalhada do Bônus:")with col_bon2:valor_bonus = st.number_input("Valor Comercial do Bônus a Abater (R$):", min_value=0.0, value=150.0)st.write("---")st.header("📦 Romaneio de Materiais")incluir_materiais_no_preco = st.toggle("Somar materiais no preço final cobrado do cliente?", value=False)opcoes_materiais = list(st.session_state.db_materials["Material"].values) if 'db_materials' in st.session_state else list(st.session_state.db_materiais["Material"].values)material_selecionado = st.selectbox("Selecione o insumo do Almoxarifado:", opcoes_materiais)preco_mat_sugerido = st.session_state.db_materiais[st.session_state.db_materiais["Material"] == material_selecionado]["Preço Unitário"].values[0]col_mat1, col_mat2, col_mat3 = st.columns(3) with col_mat1: nome_mat = st.text_input("Insumo para a Obra:", value=material_selecionado) with col_mat2: qtd_mat = st.number_input("Qtd Itens:", min_value=1, value=1) with col_mat3: preco_mat = st.number_input("Preço Unitário (R$):", min_valor=0,0, valor=float(preco_mat_sugerido)) total_materiais = 0.0if not st.session_state.df_materiais_orcamento.empty:st.write("📝 Ajuste quantidades ou valores finais direto na planilha abaixo se necessário:")df_editado = st.data_editor(st.session_state.df_materiais_orcamento, use_container_width=True, num_rows="dynamic")df_editado["Total"] = df_editado["Qtd"] * df_editado["Preço Un."]st.session_state.df_materiais_orcamento = df_editadototal_materiais = df_editado["Total"].sum()if st.button("🗑️ Resetar Insumos da Obra"):st.session_state.df_materiais_orcamento = pd.DataFrame(columns=["Item", "Qtd", "Preço Un.", "Total"])st.rerun()st.write("---") st.header("🚚 Deslocamento Logístico") tipo_transporte = st.selectbox("Cálculo de Transporte:", ["Preço Fixo", "Quilometragem Rodada"]) custo_transporte = 0.0 if tipo_transporte == "Preço Fixo": custo_transporte = st.number_input("Taxa de frete/deslocamento fixa (R$):", min_value=0.0, value=30.0) elif tipo_transporte == "Quilometragem Rodada": col_km1, col_km2 = st.columns(2) with col_km1: km_total = st.number_input("Distância total de rodagem (KM):", min_value=0.0, value=15.0) with col_km2: valor_por_km = st.number_input("Custo por KM Rodado (R$):", min_value=0.0, value=1.50) custo_transporte = km_total * valor_por_km# Engenharia financeira estruturada finalvalor_desconto_mo = valor_servico * (desconto_pct / 100)subtotal_mo = valor_servico - valor_desconto_mototal_geral = subtotal_mo + custo_ajudantes_total + custo_transporte - valor_bonusif incluir_materiais_no_preco:total_geral += total_materiaistotal_geral = max(0.0, total_geral)st.write("---") st.subheader("Painel de Custos Consolidado") st.write(f" Mão de Obra de Execução Principal: R$ {valor_servico:.2f}") st.write(f" Desconto Aplicado à Mão de Obra: - R$ {valor_desconto_mo:.2f}") if tem_ajudante: st.write(f" Custo da Equipe de Apoio (Ajudantes): + R$ {custo_ajudantes_total:.2f}") st.write(f" Logística e Mobilização de Transporte: + R$ {custo_transporte:.2f}") if valor_bonus > 0: st.write(f" Bônus Promocional (Subtraído): - R$ {valor_bonus:.2f}") st.write(f" Materiais da Instalação: R$ {total_materiais:.2f} (" + ("Somado ao total" if incluir_materiais_no_preco else "Por conta do cliente") + ")")st.markdown(f"## 💵 Total Final do Orçamento: R$ {total_geral:.2f}")# --- GERADOR DE PDF COM LOGO, ESTAMPA GOV E QR CODE --- def build_pdf_gov(verification_url, unique_hash, logo_file=None): buffer = BytesIO() doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40) story = []estilos = getSampleStyleSheet() estilo_título = ParagraphStyle('Título', parent=styles['Heading1'], fontSize=18, textColor=colors.HexColor('#1A365D'), spaceAfter=15) estilo_h2 = ParagraphStyle('H2', parent=styles['Heading2'], fontSize=12, textColor=colors.HexColor('#2B6CB0'), spaceBefore=8, spaceAfter=8) estilo_corpo = ParagraphStyle('Corpo', parent=styles['Normal'], fontSize=10, leading=14, spaceAfter=6) estilo_texto_governamental = ParagraphStyle('Texto Governamental', parent=styles['Normal'], fontSize=7.5, leading=10, textColor=colors.HexColor('#2D3748'))Se logo_file não for None: tente: logo_pil = Image.open(logo_file) logo_pil.thumbnail((150, 50)) logo_buffer = BytesIO() logo_pil.save(logo_buffer, format="PNG") logo_buffer.seek(0) story.append(RLImage(logo_buffer, width=logo_pil.width, height=logo_pil.height)) story.append(Spacer(1, 10)) exceto: passestory.append(Paragraph(f"PROPOSTA COMERCIAL E TÉCNICA DE SERVIÇOS", title_style))story.append(Paragraph(f"Cliente/Empresa: {nome_cliente if nome_cliente else 'Não Informado'}", body_style))story.append(Paragraph(f"Segmento Operacional: {tipo_obra} | Escopo Principal: {servico_principal}", body_style))story.append(Spacer(1, 10))data_fin = [["Item / Descrição Técnico", "Valor"],["Mão de Obra de Execução Principal", f"R$ {valor_servico:.2f}"],["Desconto Comercial Mão de Obra", f"- R$ {valor_desconto_mo:.2f}"]]if tem_ajudante:data_fin.append([f"Equipe Operacional (Ajudantes de Campo)", f"R$ {custo_ajudantes_total:.2f}"])data_fin.append(["Mobilização e Deslocamento Logístico", f"R$ {custo_transporte:.2f}"])if valor_bonus > 0: data_fin.append([f"Bônus Promocional Deduzido (-)", f"- R$ {valor_bonus:.2f}"])mat_status = "Inclusos no Preço" if incluir_materiais_no_preco else "Fornecimento por Conta do Cliente"data_fin.append([f"Insumos e Romaneio de Materiais ({mat_status})", f"R$ {total_materiais:.2f}"])data_fin.append(["VALOR LÍQUIDO DO INVESTIMENTO FINAL", f"R$ {total_geral:.2f}"])t_fin = Table(data_fin, colWidths=[380, 120]) t_fin.setStyle(TableStyle([ ('BACKGROUND', (0,0), (1,0), colors.HexColor('#1A365D')), ('TEXTCOLOR', (0,0), (1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')), ('FONTNAME', (0,-1), (1,-1), 'Helvetica-Bold'), ('BACKGROUND', (0,-1), (1,-1), colors.HexColor('#E2E8F0')), ('PADDING', (0,0), (-1,-1), 5), ])) story.append(t_fin) história.append(Spacer(1, 15))if not st.session_state.df_materiais_orcamento.empty:story.append(Paragraph("Detalhamento Analítico de Materiais", h2_style))data_mat = [["Item Material", "Quantidade", "Preço Un.", "Total"]]for _, r in st.session_state.df_materiais_orcamento.iterrows():data_mat.append([r["Item"], str(int(r["Qtd"])), f"R$ {r['Preço Un.']:.2f}", f"R$ {r['Total']:.2f}"])t_mat = Table(data_mat, colWidths=[230, 80, 90, 100]) t_mat.setStyle(TableStyle([ ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#4A5568')), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('ALIGN', (0,0), (-1,-1), 'CENTER'), ('ALIGN', (0,1), (0,-1), 'LEFT'), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0')), ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'), ('BOTTOMPADDING', (0,0), (-1,-1), 5), ])) story.append(t_mat) story.append(Spacer(1, 15))if obs_gerais:story.append(Paragraph("Diretrizes Gerais e Cláusulas Contratuais", h2_style))story.append(Paragraph(obs_gerais.replace('\n', ''), body_style))story.append(Spacer(1, 20))story.append(Paragraph("VERIFICAÇÃO DE AUTENTICIDADE CRIPTOGRÁFICA", h2_style))qr = qrcode.QRCode(version=1, box_size=2, border=1) qr.add_data(verification_url) qr.make(fit=True) qr_img = qr.make_image(fill_color="black", back_color="white") qr_buffer = BytesIO() qr_img.save(qr_buffer, format="PNG") qr_buffer.seek(0)agora = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")gov_msg = (f"Documento assinado eletronicamente pelo profissional técnico {nome_responsavel.upper()}."f"A integridade, autoria e conformidade desta proposta técnica comercial podem ser validadas "f"apontando a câmera do celular para o QR Code ao lado ou buscando pela chave identificadora no painel do sistema."f"Assinado em: {now} | Padrão de Autenticidade: ICP-Brasil Equivalente V2"f"Chave de Validação Criptográfica (Hash MD5): {unique_hash}")gov_table_data = [ [RLImage(qr_buffer, width=65, height=65), Paragraph(gov_msg, gov_text_style)] ] t_gov = Table(gov_table_data, colWidths=[80, 420]) t_gov.setStyle(TableStyle([ ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#A0AEC0')), ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F7FAFC')), ('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('PADDING', (0,0), (-1,-1), 8), ])) story.append(t_gov)doc.build(story) buffer.seek(0) return buffer.getvalue()# Botões de Ação Comercial st.write("---") col_btn1, col_btn2 = st.columns(2) with col_btn1: if st.button("Gerar Orçamento Oficial com Selo GOV 📄"): str_combinada = f"{nome_cliente}{total_geral}{datetime.datetime.now().timestamp()}" unique_hash = hashlib.md5(str_combinada.encode('utf-8')).hexdigest()verification_url = f"streamlit.app{unique_hash}"pdf_data = build_pdf_gov(verification_url, unique_hash, logo_upload)st.download_button(label="📥 Baixar Proposta Técnica em PDF",data=pdf_data,file_name=f"Proposta_Comercial_{nome_cliente.replace(' ', '_')}.pdf",mime="application/pdf")st.success("Orçamento estruturado, assinado e pronto para download!")with col_btn2:if st.button("Gerar Mensagem Comercial (WhatsApp) 💬"):txt_materiais = ""if not st.session_state.df_materiais_orcamento.empty:txt_materiais = "\n📦 RELAÇÃO DE INSUMOS MUDANÇA/OBRA:\n"for _, m in st.session_state.df_materiais_orcamento.iterrows():txt_materiais += f" • {m['Item']} (Qtd: {int(m['Qtd'])})\n"txt_materiais += f"👉 Materiais: " + ("INCLUSOS NO VALOR FINAL" if incluir_materiais_no_preco else "FORNECIMENTO SOB RESPONSABILIDADE DO CLIENTE") + "\n"txt_ajudantes = f"🔹 Equipe de Campo: Inclusos ajudantes técnicos de apoio\n" if tem_ajudante else ""txt_bonus = f"\n🎁 CORTESIA EXCLUSIVA DEDUZIDA DA CONTA:\n • {descricao_bonus}: de R$ {valor_bonus:.2f} por R$ 0,00 (- R$ {valor_bonus:.2f} no total)\n" if valor_bonus > 0 else ""txt_obs = f"\n🗒️ DIRETRIZES DA EXECUÇÃO:\n_{obs_gerais}_\n" if obs_gerais else ""texto_whatsapp = (f"PROPOSTA TÉCNICA E COMERCIAL DE SERVIÇOS\n\n"f"Olá, {nome_cliente if nome_cliente else 'Cliente'}.\n"f"Apresentamos a planilha orçamentária para o segmento de {tipo_obra}.\n\n"f"📌 Escopo Principal: {servico_principal}.\n"f"{txt_bonus}"f"{txt_materiais}"f"{txt_obs}\n"f"🔹 Critério de Mão de Obra: {tipo_cobranca}\n"f"{txt_ajudantes}"f"🔹 Logística e Mobilização de Transporte: R$ {custo_transporte:.2f}\n"f"🔹 Desconto Comercial Aplicado: {desconto_pct}%\n\n"f"💰 VALOR TOTAL DO INVESTIMENTO LÍQUIDO: R$ {total_geral:.2f}\n\n"f"👷 Serviços executados segundo rigorosos critérios técnicos e boas práticas de engenharia.\n"f"📅 Proposta comercial com assinatura digital padrão GOV válida por 10 dias.")st.text_area("Copie o texto gerado abaixo:", value=texto_whatsapp, height=250)
