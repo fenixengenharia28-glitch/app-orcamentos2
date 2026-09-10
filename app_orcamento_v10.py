@@ -12,6 +12,7 @@ from PIL import Image
 
 st.set_page_config(page_title="Fênix Engenharia", page_icon="🏗️", layout="centered")
 
+# Inicialização dos bancos de dados internos em memória
 if "db_v" not in st.session_state:
     st.session_state.db_v = pd.DataFrame([
         {"Tipo": "Carro", "Marca": "Fiat", "Modelo": "Uno", "Tempo de Uso (Anos)": 2, "Consumo (Km/L)": 12.0, "Valor FIPE (R$)": 35000.0, "IPVA Anual": 1400.0, "Manutenção Mensal": 200.0}
@@ -38,6 +39,10 @@ if "db_clientes" not in st.session_state:
         {"ID": "CLI-001", "Nome / Razão Social": "Fenix Engenharia e Comercio LTDA", "CPF / CNPJ": "52.769.953/0001-12", "Telefone": "(31) 99539-2027", "Endereço Completo": "Avenida Getulio Vargas, nº 671, Savassi, Belo Horizonte - MG"}
     ])
 
+# NOVO: Banco de dados para salvar múltiplos uploads de logomarcas
+if "db_logos" not in st.session_state:
+    st.session_state.db_logos = {}
+
 if "df_m_sel" not in st.session_state:
     st.session_state.df_m_sel = pd.DataFrame(columns=["ID", "Descrição", "Unidade", "Quantidade", "Valor Unitário (R$)", "Valor Total (R$)"])
 
@@ -48,7 +53,7 @@ if "df_b_sel" not in st.session_state:
     st.session_state.df_b_sel = pd.DataFrame(columns=["ID", "Descrição", "Valor (R$)"])
 
 st.title("🏗️ Propostas - Fênix Engenharia")
-st.caption("Versão v13.3 - Correção de String de Dados do Cliente e Eliminação Total do Erro PDF")
+st.caption("Versão v14.0 - Correção do NameError e Banco de Armazenamento de Logomarcas")
 a_orc, a_clientes, a_calc, a_mat, a_serv = st.tabs(["📋 Proposta Comercial", "👥 Cadastro de Clientes", "🧮 Calcular Minha Hora", "📦 Materiais", "🛠️ Serviços"])
 with a_clientes:
     st.header("👥 Central e Cadastro Geral de Clientes")
@@ -73,7 +78,7 @@ with a_clientes:
         with st.expander("🗑️ Remover Cliente Registrado"):
             cli_remover = st.selectbox("Selecione o registro para deletar permanentemente:", [f"{r['ID']} - {r['Nome / Razão Social']}" for idx, r in st.session_state.db_clientes.iterrows()])
             if st.button("❌ Confirmar Exclusão do Registro", type="primary"):
-                st.session_state.db_clientes = st.session_state.db_clientes[st.session_state.db_clientes["ID"] != cli_remover.split(" - ")[0]].reset_index(drop=True)
+                st.session_state.db_clientes = st.session_state.db_clientes[st.session_state.db_clientes["ID"] != cli_remover.split(" - ")].reset_index(drop=True)
                 st.success("Ficha cadastral removida!")
                 st.rerun()
 
@@ -106,7 +111,7 @@ with a_calc:
     if not st.session_state.db_v.empty:
         with st.expander("🗑️ Excluir Veículo"):
             vr = st.selectbox("Remover veículo:", [f"{idx} - {r['Modelo']}" for idx, r in st.session_state.db_v.iterrows()])
-            if st.button("Confirmar Exclusão V"): st.session_state.db_v = st.session_state.db_v.drop(int(vr.split(" - ")[0])).reset_index(drop=True); st.rerun()
+            if st.button("Confirmar Exclusão V"): st.session_state.db_v = st.session_state.db_v.drop(int(vr.split(" - "))).reset_index(drop=True); st.rerun()
         st.session_state.db_v = st.data_editor(st.session_state.db_v, use_container_width=True)
         cm = ((st.session_state.db_v["Valor FIPE (R$)"].sum() * 0.10 / 12) + (st.session_state.db_v["IPVA Anual"].sum() / 12) + st.session_state.db_v["Manutenção Mensal"].sum()) / ht if ht > 0 else 0.0
     else: cm = 0.0
@@ -119,7 +124,7 @@ with a_calc:
     if not st.session_state.db_c.empty:
         with st.expander("🗑️ Excluir Despesa"):
             gr = st.selectbox("Remover gasto:", [f"{idx} - {r['Tipo de Gasto']}" for idx, r in st.session_state.db_c.iterrows()])
-            if st.button("Confirmar Exclusão D"): st.session_state.db_c = st.session_state.db_c.drop(int(gr.split(" - ")[0])).reset_index(drop=True); st.rerun()
+            if st.button("Confirmar Exclusão D"): st.session_state.db_c = st.session_state.db_c.drop(int(gr.split(" - "))).reset_index(drop=True); st.rerun()
         df_f = st.session_state.db_c.copy(); df_f["Valor por Hora (R$)"] = (df_f["Valor Mensal (R$)"] / ht).round(2) if ht > 0 else 0.0
         st.session_state.db_c = st.data_editor(df_f, use_container_width=True)[["Tipo de Gasto", "Valor Mensal (R$)"]]
         cf_h = st.session_state.db_c["Valor Mensal (R$)"].sum() / ht if ht > 0 else 0.0
@@ -141,7 +146,7 @@ with a_mat:
     if not st.session_state.db_m.empty:
         with st.expander("🗑️ Remover Material"):
             mr = st.selectbox("Deletar item do catálogo:", [f"{r['ID']} - {r['Descrição']}" for idx, r in st.session_state.db_m.iterrows()])
-            if st.button("Confirmar Remoção M"): st.session_state.db_m = st.session_state.db_m[st.session_state.db_m["ID"] != mr.split(" - ")[0]].reset_index(drop=True); st.rerun()
+            if st.button("Confirmar Remoção M"): st.session_state.db_m = st.session_state.db_m[st.session_state.db_m["ID"] != mr.split(" - ")].reset_index(drop=True); st.rerun()
         df_me = st.data_editor(st.session_state.db_m, use_container_width=True)
         df_me["Valor Unitário (R$)"] = (df_me["Custo (R$)"] / (1 - (df_me["Margem (%)"].clip(0,99)/100))).round(2); st.session_state.db_m = df_me
 
@@ -154,19 +159,33 @@ with a_serv:
     if not st.session_state.db_s.empty:
         with st.expander("🗑️ Remover Serviço"):
             sr = st.selectbox("Deletar serviço do catálogo:", [f"{r['ID']} - {r['Descrição']}" for idx, r in st.session_state.db_s.iterrows()])
-            if st.button("Confirmar Remoção S"): st.session_state.db_s = st.session_state.db_s[st.session_state.db_s["ID"] != sr.split(" - ")[0]].reset_index(drop=True); st.rerun()
+            if st.button("Confirmar Remoção S"): st.session_state.db_s = st.session_state.db_s[st.session_state.db_s["ID"] != sr.split(" - ")].reset_index(drop=True); st.rerun()
         st.session_state.db_s = st.data_editor(st.session_state.db_s, use_container_width=True)
 with a_orc:
     st.subheader("📋 Configuração da Proposta Comercial - Fênix Engenharia")
-    logo_upload = st.file_uploader("Upload da Logomarca (Direita do PDF):", type=["png", "jpg", "jpeg"])
+    
+    # NOVO: Mecanismo de persistência única para upload de múltiplas logomarcas
+    col_l1, col_l2 = st.columns([2, 1])
+    with col_l1:
+        logo_upload = st.file_uploader("Suba uma nova Logomarca para salvar na memória da empresa:", type=["png", "jpg", "jpeg"])
+        if logo_upload is not None:
+            nome_da_logo = logo_upload.name
+            if nome_da_logo not in st.session_state.db_logos:
+                st.session_state.db_logos[nome_da_logo] = logo_upload.read()
+                st.success(f"Logo '{nome_da_logo}' gravada com sucesso!")
+    with col_l2:
+        opcoes_logos = list(st.session_state.db_logos.keys()) if st.session_state.db_logos else ["Nenhuma logo salva"]
+        logo_selecionada = st.selectbox("Escolha a logo ativa para o PDF:", opcoes_logos)
+    
+    logo_final_bytes = st.session_state.db_logos.get(logo_selecionada) if logo_selecionada != "Nenhuma logo salva" else None
+
     wpp_num = st.text_input("WhatsApp para QR Code (Apenas Números com DDD):", value="31995392027")
     
     lista_clientes_ativos = [f"{r['ID']} - {r['Nome / Razão Social']}" for idx, r in st.session_state.db_clientes.iterrows()] if not st.session_state.db_clientes.empty else ["Nenhum cliente cadastrado"]
     c_selecionado = st.selectbox("Selecione o Cliente Cadastrado:", lista_clientes_ativos)
     
     if not st.session_state.db_clientes.empty and c_selecionado != "Nenhum cliente cadastrado":
-        # CORREÇÃO CRÍTICA: Captura de dados transformados obrigatoriamente em strings simples (.values[0])
-        ficha_c = st.session_state.db_clientes[st.session_state.db_clientes["ID"] == c_selecionado.split(" - ")[0]]
+        ficha_c = st.session_state.db_clientes[st.session_state.db_clientes["ID"] == c_selecionado.split(" - ")]
         nc = str(ficha_c["Nome / Razão Social"].values[0])
         cnpj_c = str(ficha_c["CPF / CNPJ"].values[0])
         end_c = str(ficha_c["Endereço Completo"].values[0])
@@ -176,13 +195,13 @@ with a_orc:
     ds_serv = st.text_area("Descrição Geral do Serviço Executado:", value="Execução de Infraestrutura e Reforma Técnica.")
     c1, c2, c3 = st.columns(3); val_d = c1.number_input("Validade (Dias):", min_value=1, value=10); dt_e = c2.date_input("Emissão:", value=dt.date.today()); dt_v = c3.date_input("Válido Até:", value=dt.date.today()+dt.timedelta(days=int(val_d)))
     
-    st.write("---"); st.subheader(" Mão de Obra")
+    st.write("---"); st.subheader("👷 Mão de Obra")
     lista_s = [f"{r['ID']} - {r['Descrição']}" for idx, r in st.session_state.db_s.iterrows()] if not st.session_state.db_s.empty else []
     if lista_s:
         s_sel = st.selectbox("Vincular Serviço à Proposta:", lista_s)
         q_srv_solicitada = st.number_input("Quantidade do Serviço:", min_value=1, value=1)
         if st.button("➕ Vincular Serviço"):
-            item_filtrado_s = st.session_state.db_s[st.session_state.db_s["ID"] == s_sel.split(" - ")[0]]
+            item_filtrado_s = st.session_state.db_s[st.session_state.db_s["ID"] == s_sel.split(" - ")]
             if not item_filtrado_s.empty:
                 it_s = item_filtrado_s.iloc[0]
                 st.session_state.df_s_sel = pd.concat([st.session_state.df_s_sel, pd.DataFrame([{"ID": it_s["ID"], "Descrição": it_s["Descrição"], "Quantidade": q_srv_solicitada, "Valor Unitário (R$)": it_s["Valor (R$)"], "Valor Total (R$)": q_srv_solicitada * it_s["Valor (R$)"]}])], ignore_index=True); st.rerun()
@@ -190,7 +209,7 @@ with a_orc:
     if not st.session_state.df_s_sel.empty:
         if st.checkbox("Excluir Serviço Vinculado"):
             s_rem = st.selectbox("Remover serviço da proposta:", [f"{idx} - {r['Descrição']}" for idx, r in st.session_state.df_s_sel.iterrows()])
-            if st.button("❌ Confirmar Remoção Serviço"): st.session_state.df_s_sel = st.session_state.df_s_sel.drop(int(s_rem.split(" - ")[0])).reset_index(drop=True); st.rerun()
+            if st.button("❌ Confirmar Remoção Serviço"): st.session_state.df_s_sel = st.session_state.df_s_sel.drop(int(s_rem.split(" - "))).reset_index(drop=True); st.rerun()
         df_se_edit = st.data_editor(st.session_state.df_s_sel, use_container_width=True)
         df_se_edit["Valor Total (R$)"] = df_se_edit["Quantidade"] * df_se_edit["Valor Unitário (R$)"]
         st.session_state.df_s_sel = df_se_edit; t_mo = df_se_edit["Valor Total (R$)"].sum()
@@ -201,14 +220,14 @@ with a_orc:
     if lista_m:
         m_sel = st.selectbox("Vincular Material à Proposta:", lista_m); q_sol = st.number_input("Quantidade Requerida:", min_value=1, value=1)
         if st.button("➕ Vincular Material"):
-            item_filtrado_m = st.session_state.db_m[st.session_state.db_m["ID"] == m_sel.split(" - ")[0]]
+            item_filtrado_m = st.session_state.db_m[st.session_state.db_m["ID"] == m_sel.split(" - ")]
             if not item_filtrado_m.empty:
                 it_m = item_filtrado_m.iloc[0]
                 st.session_state.df_m_sel = pd.concat([st.session_state.df_m_sel, pd.DataFrame([{"ID": it_m["ID"], "Descrição": it_m["Descrição"], "Unidade": it_m["Unidade"], "Quantidade": q_sol, "Valor Unitário (R$)": it_m["Valor Unitário (R$)"], "Valor Total (R$)": q_sol*it_m["Valor Unitário (R$)"]}])], ignore_index=True); st.rerun()
     if not st.session_state.df_m_sel.empty:
         if st.checkbox("Excluir Material Vinculado"):
             m_rem = st.selectbox("Remover produto da proposta:", [f"{idx} - {r['Descrição']}" for idx, r in st.session_state.df_m_sel.iterrows()])
-            if st.button("❌ Confirmar Remoção Material"): st.session_state.df_m_sel = st.session_state.df_m_sel.drop(int(m_rem.split(" - ")[0])).reset_index(drop=True); st.rerun()
+            if st.button("❌ Confirmar Remoção Material"): st.session_state.df_m_sel = st.session_state.df_m_sel.drop(int(m_rem.split(" - "))).reset_index(drop=True); st.rerun()
         df_me_edit = st.data_editor(st.session_state.df_m_sel, use_container_width=True)
         df_me_edit["Valor Total (R$)"] = df_me_edit["Quantidade"] * df_me_edit["Valor Unitário (R$)"]
         st.session_state.df_m_sel = df_me_edit; t_mat = df_me_edit["Valor Total (R$)"].sum()
@@ -222,7 +241,7 @@ with a_orc:
     if not st.session_state.df_b_sel.empty:
         if st.checkbox("Excluir Bônus Vinculado"):
             b_rem = st.selectbox("Remover bônus da proposta:", [f"{idx} - {r['Descrição']}" for idx, r in st.session_state.df_b_sel.iterrows()])
-            if st.button("❌ Confirmar Remoção Bônus"): st.session_state.df_b_sel = st.session_state.df_b_sel.drop(int(b_rem.split(" - ")[0])).reset_index(drop=True); st.rerun()
+            if st.button("❌ Confirmar Remoção Bônus"): st.session_state.df_b_sel = st.session_state.df_b_sel.drop(int(b_rem.split(" - "))).reset_index(drop=True); st.rerun()
         st.session_state.df_b_sel = st.data_editor(st.session_state.df_b_sel, use_container_width=True); t_bon = st.session_state.df_b_sel["Valor (R$)"].sum()
     else: t_bon = 0.0
 
@@ -234,16 +253,21 @@ with a_orc:
     st.write(f"**Total Bônus:** R$ {t_bon:.2f} | **Subtotal:** R$ {sub_bruto:.2f} | **Desconto:** R$ {v_desc:.2f}")
     st.warning(f"💳 **TOTAL A PAGAR (ATÉ 10X CARTÃO): R$ {tot_cartao:.2f}**")
     st.success(f"💰 **TOTAL À VISTA (DINHEIRO OU PIX): R$ {tot_vista:.2f}**")
-    def build_pdf_fenix(lf, q_url, h_val):
+    def build_pdf_fenix(logo_bytes, q_url, h_val):
         bf = BytesIO(); doc = SimpleDocTemplate(bf, pagesize=letter, rightMargin=35, leftMargin=45, topMargin=40, bottomMargin=40); sty = []; s = getSampleStyleSheet()
         t_sty = ParagraphStyle('T', parent=s['Heading1'], fontSize=12, textColor=colors.HexColor('#1A365D'), spaceBefore=10, spaceAfter=4)
         b_sty = ParagraphStyle('B', parent=s['Normal'], fontSize=9, leading=13, spaceAfter=4)
         tx_emp = "<b>FÊNIX ENGENHARIA</b> - CNPJ: 52.769.953/0001-12<br/>Endereço: Avenida Getulio Vargas, nº 671, 9º Andar, Sala 1.051, Bairro Savassi, Belo Horizonte - MG, Cep: 30112-021"
         l_bx = Paragraph("", b_sty)
-        if lf:
-            try: pi = Image.open(lf); logo_p = pi.copy(); logo_p.thumbnail((90, 40)); lb = BytesIO(); logo_p.save(lb, format="PNG"); lb.seek(0); l_bx = RLImage(lb, width=logo_p.width, height=logo_p.height)
+        
+        # Puxa dinamicamente a logo selecionada que foi gravada em bytes na memória
+        if logo_bytes is not None:
+            try:
+                pi = Image.open(BytesIO(logo_bytes)); logo_p = pi.copy(); logo_p.thumbnail((90, 40))
+                lb = BytesIO(); logo_p.save(lb, format="PNG"); lb.seek(0); l_bx = RLImage(lb, width=logo_p.width, height=logo_p.height)
             except: pass
             
+        qr = qrcode.QRCode(version=1, box_size=2, border=0); qr.add_data(q_url); qr.make(fit=True); qb = BytesIO(); qr.make_image(fill_color="black", back_color="white").save(qb, format="PNG"); qb.seek(0)
         t_hdr = Table([[RLImage(BytesIO(qb.getvalue()), width=45, height=45), Paragraph(tx_emp, ParagraphStyle('C', parent=s['Normal'], fontSize=8, leading=11, alignment=1)), l_bx]], colWidths=(60, 350, 110))
         t_hdr.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE')])); sty.append(t_hdr); sty.append(Spacer(1, 10))
         
@@ -287,6 +311,7 @@ with a_orc:
         sty.append(Paragraph(t_pag, b_sty))
         
         now_t = dt.datetime.now().strftime('%d/%m/%Y %H:%M')
+        # RESOLVIDO: Restaurada a variável fixa com o nome do responsável para banir o NameError
         msg = f"<b>Assinado digitalmente por:</b> RONILSON RICHARDSON FRAGOSO DE SOUZA<br/><b>Data da Chancelagem:</b> {now_t} | <b>Padrão:</b> ICP-Brasil Equivalente V2<br/><b>Chave Identificadora de Autenticidade (MD5):</b> {h_val}"
         tgv = Table([[RLImage(BytesIO(qb.getvalue()), width=55, height=55), Paragraph(msg, ParagraphStyle('G', parent=s['Normal'], fontSize=7.5, leading=10))]], colWidths=(65, 455))
         tgv.setStyle(TableStyle([('BOX', (0,0), (-1,-1), 1, colors.HexColor('#A0AEC0')), ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F7FAFC')), ('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('PADDING', (0,0), (-1,-1), 6)]))
@@ -296,5 +321,5 @@ with a_orc:
 
     if st.button("🚀 Chancelar Proposta Comercial"):
         hv = hashlib.md5(f"{nc}{tot_vista}".encode()).hexdigest(); l_wp = f"https://whatsapp.com{wpp_num}&text=Aprovar%20Orcamento%20{hv}"
-        pdf = build_pdf_fenix(logo_upload, l_wp, hv)
+        pdf = build_pdf_fenix(logo_final_bytes, l_wp, hv)
         st.download_button(label="📥 Baixar Proposta Comercial em PDF", data=pdf, file_name=f"Proposta_Fenix_{nc}.pdf", mime="application/pdf")
