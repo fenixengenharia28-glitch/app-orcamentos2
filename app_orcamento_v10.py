@@ -16,21 +16,31 @@ if "db_custos_fixos" not in st.session_state:
         {"Tipo de Gasto": "Internet e Celular", "Valor Mensal (R$)": 120.0}
     ])
 
-# NOVO: Banco de dados estruturado para a Aba 3 - Cadastro de Materiais
 if "db_materiais" not in st.session_state:
     st.session_state.db_materiais = pd.DataFrame([
         {"ID": "MAT-001", "Descrição": "Cabo Flexível 2,5mm²", "Unidade": "m", "Custo (R$)": 3.60, "Margem (%)": 20, "Valor Unitário (R$)": 4.50},
         {"ID": "MAT-002", "Descrição": "Disjuntor DIN 20A", "Unidade": "Un", "Custo (R$)": 14.00, "Margem (%)": 30, "Valor Unitário (R$)": 20.00}
     ])
 
-st.title("🏗️ Sistema Orçamentário Construção Pro")
-st.caption("Módulo de Engenharia de Custos e Catálogo de Materiais Comercial")
+# NOVO: Banco de dados estruturado para a Aba 4 - Cadastro de Serviços
+if "db_servicos" not in st.session_state:
+    st.session_state.db_servicos = pd.DataFrame([
+        {"ID": "SRV-001", "Descrição": "Instalação de Ponto de Tomada", "Unidade": "Ponto", "Valor (R$)": 50.00},
+        {"ID": "SRV-002", "Descrição": "Pintura de Parede Interna", "Unidade": "M²", "Valor (R$)": 25.00}
+    ])
 
-# Criação das Abas Principais (Orçamento, Hora e Materiais na sequência lógica)
-aba_orcamento, aba_calcular_hora, aba_materiais = st.tabs([
+if "df_materiais_orcamento" not in st.session_state:
+    st.session_state.df_materiais_orcamento = pd.DataFrame(columns=["Item", "Qtd", "Preço Un.", "Total"])
+
+st.title("🏗️ Sistema Orçamentário Construção Pro")
+st.caption("Módulo de Engenharia de Custos e Catálogo Técnico de Itens")
+
+# Criação das Abas Principais com as nomenclaturas corrigidas
+aba_orcamento, aba_calcular_hora, aba_materiais, aba_servicos = st.tabs([
     "📋 Gerar Orçamento", 
     "🧮 Calcular Minha Hora",
-    "📦 Cadastro de Materiais"
+    "📦 Cadastro de Materiais",
+    "🛠️ Cadastro de Serviços"
 ])
 
 # --- ABA 1: RASCUNHO INICIAL DE ORÇAMENTO ---
@@ -107,64 +117,68 @@ with aba_calcular_hora:
     st.markdown(f"### 🎯 Preço da sua Hora Técnica Sugerida: **R$ {hora_tecnica_final:.2f}/h**")
     if st.button("🚀 Sincronizar e Gravar Preço da Hora"):
         st.session_state["preco_hora_tecnica_fechada"] = round(hora_tecnica_final, 2); st.success("Gravado!")
-# --- ABA 3: CADASTRO DE MATERIAIS E ROMANEIO (NOVA) ---
-with aba_materials:
+# --- ABA 3: CADASTRO DE MATERIAIS ---
+with aba_materiais:
     st.header("📦 Catálogo de Materiais e Insumos")
-    st.write("Registre os materiais de estoque ou de fornecedores para calcular o preço final de venda com margem de lucro líquida.")
-    
-    # Formulário de entrada para novos insumos
     with st.form("cad_material_form", clear_on_submit=True):
         col_m1, col_m2 = st.columns(2)
         with col_m1:
-            m_descricao = st.text_input("Descrição do Material (ex: Cabo Flexível 4mm²):")
-            m_unidade = st.selectbox("Unidade de Medida:", ["Un", "m", "Barra", "Saco", "Caixa", "kg", "Par", "Outro"])
-        with col_v2: # Reutiliza referências de layout estáveis
-            m_custo = st.number_input("Custo de Aquisição / Nota Fiscal (R$):", min_value=0.0, value=10.0, step=1.0)
-            m_margem = st.slider("Margem de Lucro desejada sobre o item (%)", min_value=0, max_value=80, value=30, step=5)
+            m_descricao = st.text_input("Descrição do Material:")
+            m_unidade = st.selectbox("Unidade de Medida:", ["Un", "m", "Barra", "Saco", "Caixa", "kg", "Outro"])
+        with col_m2:
+            m_custo = st.number_input("Custo de Aquisição (R$):", min_value=0.0, value=10.0)
+            m_margem = st.slider("Margem de Lucro desejada (%)", min_value=0, max_value=80, value=30, step=5)
             
-        if st.form_submit_button("💾 Salvar Material no Almoxarifado"):
+        if st.form_submit_button("💾 Salvar Material"):
             if m_descricao:
-                # Gerador sequencial de ID inteligente baseado no tamanho do banco de dados
                 novo_id = f"MAT-{len(st.session_state.db_materiais) + 1:03d}"
-                
-                # Fórmula de Markup sobre preço de venda (Garante lucro real sobre insumos)
-                valor_final_com_margem = m_custo / (1 - (m_margem / 100)) if m_margem < 100 else m_custo
-                
-                novo_m = pd.DataFrame([{
-                    "ID": novo_id,
-                    "Descrição": m_descricao,
-                    "Unidade": m_unidade,
-                    "Custo (R$)": round(m_custo, 2),
-                    "Margem (%)": m_margem,
-                    "Valor Unitário (R$)": round(valor_final_com_margem, 2)
-                }])
-                st.session_state.db_materiais = pd.concat([st.session_state.db_materiais, novo_m], ignore_index=True)
-                st.success(f"Material {m_descricao} registrado com sucesso!")
-                st.rerun()
+                valor_final = m_custo / (1 - (m_margem / 100)) if m_margem < 100 else m_custo
+                novo_m = pd.DataFrame([{"ID": novo_id, "Descrição": m_descricao, "Unidade": m_unidade, "Custo (R$)": round(m_custo, 2), "Margem (%)": m_margem, "Valor Unitário (R$)": round(valor_final, 2)}])
+                st.session_state.db_materiais = pd.concat([st.session_state.db_materiais, novo_m], ignore_index=True); st.rerun()
 
-    # Painel analítico de gestão de insumos ativos
     if not st.session_state.db_materiais.empty:
-        # Seção Avançada: Remoção de Insumos obsoletos
-        with st.expander("🗑️ Excluir Insumo / Material do Almoxarifado"):
-            lista_materiais_remover = [f"{r['ID']} - {r['Descrição']}" for idx, r in st.session_state.db_materiais.iterrows()]
-            material_para_remover = st.selectbox("Selecione o insumo para deletar definitivamente:", lista_materiais_remover)
+        with st.expander("🗑️ Excluir Material"):
+            mat_remover = st.selectbox("Deletar material:", [f"{r['ID']} - {r['Descrição']}" for idx, r in st.session_state.db_materiais.iterrows()])
             if st.button("❌ Confirmar Exclusão do Insumo", type="primary"):
-                # Captura o ID exato para realizar o drop limpo
-                id_alvo = material_para_remover.split(" - ")[0]
-                st.session_state.db_materiais = st.session_state.db_materiais[st.session_state.db_materiais["ID"] != id_alvo].reset_index(drop=True)
-                st.success("Material removido do catálogo com sucesso!")
-                st.rerun()
-
-        st.write("📝 **Relação de Materiais Cadastrados (Ajuste preços ou margens direto na tabela):**")
-        
-        # Data editor responsivo
+                st.session_state.db_materiais = st.session_state.db_materiais[st.session_state.db_materiais["ID"] != mat_remover.split(" - ")[0]].reset_index(drop=True); st.rerun()
         df_m_editado = st.data_editor(st.session_state.db_materiais, use_container_width=True, num_rows="dynamic")
-        
-        # Recálculo automático das colunas de preço caso o usuário altere o custo ou a margem direto nas células
         df_m_editado["Valor Unitário (R$)"] = (df_m_editado["Custo (R$)"] / (1 - (df_m_editado["Margem (%)"] / 100))).round(2)
         st.session_state.db_materiais = df_m_editado
-        
-        # Métricas de resumo do catálogo
-        st.caption(f"ℹ️ Total de itens cadastrados no catálogo técnico: **{len(df_m_editado)} insumos ativos**.")
-    else:
-        st.info("Nenhum material cadastrado até o momento. Utilize o formulário acima para registrar seus insumos de obra.")
+
+# --- ABA 4: CADASTRO DE SERVIÇOS (NOVA) ---
+with aba_servicos:
+    st.header("🛠️ Catálogo Técnico de Serviços da Empresa")
+    st.write("Configure a tabela referencial de serviços e os critérios de cobrança de mão de obra.")
+    
+    with st.form("cad_servico_form", clear_on_submit=True):
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            s_descricao = st.text_input("Descrição do Serviço (ex: Infraestrutura de Eletroduto):")
+            s_unidade = st.selectbox("Unidade de Cobrança:", ["Ponto", "M²", "Diária", "Hora", "Empreitada", "Metro"])
+        with col_s2:
+            s_valor = st.number_input("Preço de Venda Sugerido (R$):", min_value=0.0, value=50.0, step=5.0)
+            
+        if st.form_submit_button("💾 Salvar Serviço no Catálogo"):
+            if s_descricao:
+                novo_id_s = f"SRV-{len(st.session_state.db_servicos) + 1:03d}"
+                novo_s = pd.DataFrame([{
+                    "ID": novo_id_s,
+                    "Descrição": s_descricao,
+                    "Unidade": s_unidade,
+                    "Valor (R$)": round(s_valor, 2)
+                }])
+                st.session_state.db_servicos = pd.concat([st.session_state.db_servicos, novo_s], ignore_index=True)
+                st.success(f"Serviço '{s_descricao}' adicionado com sucesso!")
+                st.rerun()
+
+    if not st.session_state.db_servicos.empty:
+        with st.expander("🗑️ Excluir Serviço do Catálogo"):
+            srv_remover = st.selectbox("Selecione o serviço para deletar:", [f"{r['ID']} - {r['Descrição']}" for idx, r in st.session_state.db_servicos.iterrows()])
+            if st.button("❌ Confirmar Exclusão do Serviço", type="primary"):
+                st.session_state.db_servicos = st.session_state.db_servicos[st.session_state.db_servicos["ID"] != srv_remover.split(" - ")[0]].reset_index(drop=True)
+                st.success("Serviço removido!")
+                st.rerun()
+
+        st.write("📝 **Relação de Serviços Salvos (Editável):**")
+        df_s_editado = st.data_editor(st.session_state.db_servicos, use_container_width=True, num_rows="dynamic")
+        st.session_state.db_servicos = df_s_editado
