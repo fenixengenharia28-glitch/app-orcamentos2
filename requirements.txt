@@ -2,3 +2,7 @@ streamlit
 pandas
 reportlab
 qrcode
+pillow
+st-files-connection
+gspread
+streamlit-gsheets
