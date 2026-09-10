@@ -20,7 +20,7 @@ if "db_custos_fixos" not in st.session_state:
 st.title("🏗️ Sistema Orçamentário Construção Pro")
 st.caption("Módulo de Engenharia de Custos e Formação de Preço por Hora Técnica")
 
-# Criação das Abas Principais (Aba de Orçamento no início como solicitado)
+# Criação das Abas Principais (Aba de Orçamento no início)
 aba_orcamento, aba_calcular_hora = st.tabs(["📋 Gerar Orçamento", "🧮 Calcular Minha Hora"])
 
 # --- ABA 1: RASCUNHO INICIAL DE ORÇAMENTO ---
@@ -73,12 +73,21 @@ with aba_calcular_hora:
                 st.session_state.db_veiculos = pd.concat([st.session_state.db_veiculos, novo_v], ignore_index=True)
                 st.success(f"Veículo {v_modelo} cadastrado com sucesso!")
                 st.rerun()
-    # Renderização da Planilha Dinâmica do Veículo
+    # Renderização da Planilha Dinâmica do Veículo e Remoção
     if not st.session_state.db_veiculos.empty:
+        # Área de Exclusão de Veículos
+        with st.expander("🗑️ Excluir Veículo Cadastrado"):
+            lista_veiculos = [f"{idx} - {r['Marca']} {r['Modelo']}" for idx, r in st.session_state.db_veiculos.iterrows()]
+            veiculo_para_remover = st.selectbox("Selecione o veículo para deletar:", lista_veiculos)
+            if st.button("❌ Confirmar Exclusão do Veículo", type="primary"):
+                idx_remover = int(veiculo_para_remover.split(" - ")[0])
+                st.session_state.db_veiculos = st.session_state.db_veiculos.drop(idx_remover).reset_index(drop=True)
+                st.success("Veículo removido com sucesso!")
+                st.rerun()
+
         df_v_editado = st.data_editor(st.session_state.db_veiculos, use_container_width=True, num_rows="dynamic")
         st.session_state.db_veiculos = df_v_editado
         
-        # Engenharia de depreciação (10% ao ano linear) e divisão das despesas pelo tempo mensal faturável
         tot_fipe = df_v_editado["Valor FIPE (R$)"].sum()
         tot_seg_anual = df_v_editado["Seguro/Doc Anual (R$)"].sum()
         tot_man_mensal = df_v_editado["Manutenção Mensal (R$)"].sum()
@@ -110,18 +119,25 @@ with aba_calcular_hora:
                 st.success("Custo fixo adicionado!")
                 st.rerun()
 
-    # Cálculo em tempo real do custo por hora para cada linha cadastrada
+    # Cálculo em tempo real do custo por hora para cada linha cadastrada e Remoção
     if not st.session_state.db_custos_fixos.empty:
+        # Área de Exclusão de Custos Fixos
+        with st.expander("🗑️ Excluir Despesa / Gasto Fixo"):
+            lista_gastos = [f"{idx} - {r['Tipo de Gasto']}" for idx, r in st.session_state.db_custos_fixos.iterrows()]
+            gasto_para_remover = st.selectbox("Selecione a despesa para deletar:", lista_gastos)
+            if st.button("❌ Confirmar Exclusão da Despesa", type="primary"):
+                idx_gasto_remover = int(gasto_para_remover.split(" - ")[0])
+                st.session_state.db_custos_fixos = st.session_state.db_custos_fixos.drop(idx_gasto_remover).reset_index(drop=True)
+                st.success("Despesa removida com sucesso!")
+                st.rerun()
+
         df_f_trabalho = st.session_state.db_custos_fixos.copy()
-        
-        # Calcula dinamicamente o valor por hora de cada custo baseado no tempo mensal faturável
         df_f_trabalho["Valor por Hora (R$)"] = df_f_trabalho["Valor Mensal (R$)"] / (horas_totais_mes if horas_totais_mes > 0 else 1)
         df_f_trabalho["Valor por Hora (R$)"] = df_f_trabalho["Valor por Hora (R$)"].round(2)
         
-        st.write("📝 **Planilha de Custos Fixos Ativos (Editável em tempo real):**")
+        st.write("📝 **Planilha de Custos Fixos Ativos (Editável):**")
         df_f_editado = st.data_editor(df_f_trabalho, use_container_width=True, num_rows="dynamic")
         
-        # Atualiza a tabela base com os dados modificados do editor
         st.session_state.db_custos_fixos = df_f_editado[["Tipo de Gasto", "Valor Mensal (R$)"]]
         
         total_fixo_mensal = df_f_editado["Valor Mensal (R$)"].sum()
@@ -137,7 +153,6 @@ with aba_calcular_hora:
     salario_por_hora = salario_desejado / horas_totais_mes if horas_totais_mes > 0 else 0.0
     custo_hora_bruto = salario_por_hora + v_hora_operacional + f_hora_operacional
     
-    # Aplicação do Markup de Margem de Lucro sobre o custo bruto por hora
     if margem_lucro < 100:
         hora_tecnica_final = custo_hora_bruto / (1 - (margem_lucro / 100))
     else:
