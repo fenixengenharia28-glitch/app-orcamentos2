@@ -1,110 +1,152 @@
-import streamlit as st, pandas as pd, datetime as dt, hashlib, qrcode, reportlab.lib.colors as c
-from io import BytesIO
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from PIL import Image
+import streamlit as st
+import pandas as pd
 
-st.set_page_config(page_title="Orçamentos Pro", page_icon="🏗️", layout="centered")
-q = st.query_params
-if "verificar" in q:
-    st.success("🔒 PORTAL DE VERIFICAÇÃO"); st.title("✅ Documento Autêntico"); st.info(f"**Código Hash:** {q['verificar']}")
-    if st.button("Voltar"): st.query_params.clear(); st.rerun()
-    st.stop()
+# Configuração da página para Desktop e Celular
+st.set_page_config(page_title="Construção Pro - Engenharia de Custos", page_icon="🏗️", layout="centered")
 
-if "db_s" not in st.session_state:
-    st.session_state.db_s = pd.DataFrame([{"Serviço": "Instalação de Tomada", "Preço Padrão": 50.0}, {"Serviço": "Reforma de QDC", "Preço Padrão": 350.0}])
-if "db_m" not in st.session_state:
-    st.session_state.db_m = pd.DataFrame([{"Material": "Cabo 2,5mm² (m)", "Preço Unitário": 4.50}])
-if "db_v" not in st.session_state:
-    st.session_state.db_v = pd.DataFrame([{"Tipo": "Carro", "Marca": "Fiat", "Modelo": "Uno", "Valor (R$)": 35000.0, "IPVA Anual": 1400.0, "Anos Posse": 2}])
-if "df_o" not in st.session_state:
-    st.session_state.df_o = pd.DataFrame(columns=["Item", "Qtd", "Preço Un.", "Total"])
+# Inicialização dos bancos de dados internos em memória se não existirem
+if "db_veiculos" not in st.session_state:
+    st.session_state.db_veiculos = pd.DataFrame([
+        {"Marca": "Fiat", "Modelo": "Uno", "Tempo de Uso (Anos)": 2, "Consumo (Km/L)": 12.0, "Valor FIPE (R$)": 35000.0, "Seguro/Doc Anual (R$)": 1500.0, "Manutenção Mensal (R$)": 200.0}
+    ])
 
-st.title("🏗️ Orçamentos Construção Pro")
-st.caption("Versão v11.1 Corrige TypeError - Proteção de busca e Frota Completa")
-a_orc, a_serv, a_mat, a_veic, a_calc = st.tabs(["📋 Criar Orçamento", "🛠️ Serviços", "📦 Materiais", "🚗 Veículo", "🧮 Calcular Hora"])
+if "db_custos_fixos" not in st.session_state:
+    st.session_state.db_custos_fixos = pd.DataFrame([
+        {"Tipo de Gasto": "Contador / MEI", "Valor Mensal (R$)": 80.0},
+        {"Tipo de Gasto": "Internet e Celular", "Valor Mensal (R$)": 120.0},
+        {"Tipo de Gasto": "Ferramentas e Software", "Valor Mensal (R$)": 150.0}
+    ])
 
-with a_serv:
-    with st.form("c_s", clear_on_submit=True):
-        ns, np = st.text_input("Serviço:"), st.number_input("Preço (R$):", min_value=0.0)
-        if st.form_submit_button("💾 Salvar") and ns: st.session_state.db_s = pd.concat([st.session_state.db_s, pd.DataFrame([{"Serviço": ns, "Preço Padrão": np}])], ignore_index=True); st.rerun()
-    st.session_state.db_s = st.data_editor(st.session_state.db_s, use_container_width=True, num_rows="dynamic")
+st.title("🏗️ Sistema Orçamentário Construção Pro")
+st.caption("Módulo de Engenharia de Custos e Formação de Preço por Hora Técnica")
 
-with a_mat:
-    with st.form("c_m", clear_on_submit=True):
-        nm, np = st.text_input("Material:"), st.number_input("Preço Unitário (R$):", min_value=0.0)
-        if st.form_submit_button("💾 Salvar") and nm: st.session_state.db_m = pd.concat([st.session_state.db_m, pd.DataFrame([{"Material": nm, "Preço Unitário": np}])], ignore_index=True); st.rerun()
-    st.session_state.db_m = st.data_editor(st.session_state.db_m, use_container_width=True, num_rows="dynamic")
+# Criação das Abas Principais (Aba de Orçamento no início como solicitado)
+aba_orcamento, aba_calcular_hora = st.tabs(["📋 Gerar Orçamento", "🧮 Calcular Minha Hora"])
 
-with a_veic:
-    with st.form("c_v", clear_on_submit=True):
-        c1, c2 = st.columns(2); vt = c1.selectbox("Tipo:", ["Carro", "Moto", "Caminhão"]); vm = c1.text_input("Marca:"); tp = c1.number_input("Tempo de Posse (Anos):", min_value=0, value=1); mo = c2.text_input("Modelo:"); vl = c2.number_input("Valor FIPE:", min_value=0.0, value=25000.0); ip = c2.number_input("IPVA Anual:", min_value=0.0, value=1500.0)
-        if st.form_submit_button("💾 Salvar") and vm and mo: st.session_state.db_v = pd.concat([st.session_state.db_v, pd.DataFrame([{"Tipo": vt, "Marca": vm, "Modelo": mo, "Valor (R$)": vl, "IPVA Anual": ip, "Anos Posse": tp}])], ignore_index=True); st.rerun()
-    st.session_state.db_v = st.data_editor(st.session_state.db_v, use_container_width=True, num_rows="dynamic")
-with a_calc:
-    cf = st.number_input("Custos fixos de escritório:", min_value=0.0, value=500.0); vf = st.session_state.db_v["Valor (R$)"].sum() if not st.session_state.db_v.empty else 0.0; iff = st.session_state.db_v["IPVA Anual"].sum() if not st.session_state.db_v.empty else 0.0; cm = ((vf * 0.10) / 12) + (iff / 12); st.info(f"🚗 Custos da Frota: R$ {cm:.2f}/mês")
-    sd = st.number_input("Meta de Pró-labore mensal:", min_value=0.0, value=4000.0); dt_m = st.number_input("Dias trabalhados/mês:", min_value=1, value=22); hd = st.number_input("Horas produtivas/dia:", min_value=1.0, value=6.0); ml = st.slider("Margem da Empresa (%)", 0, 50, 20); ht = dt_m * hd; h_cal = ((cf + cm + sd) / ht) / (1 - (ml / 100)) if ht > 0 else 0.0; st.success(f"💰 Hora Sugerida: R$ {h_cal:.2f}")
-    if st.button("Aplicar Hora"): st.session_state["pr_h"] = round(h_cal, 2); st.info("Sincronizado!")
+# --- ABA 1: RASCUNHO INICIAL DE ORÇAMENTO ---
+with aba_orcamento:
+    st.header("📋 Novo Orçamento")
+    st.write("Esta aba está pronta e será integrada aos custos assim que finalizarmos a calculadora de horas abaixo.")
+    st.info("Acesse a aba 'Calcular Minha Hora' ao lado para configurar seus parâmetros de campo.")
 
-with a_orc:
-    logo_upload = st.file_uploader("Upload da Logomarca (Opcional):", type=["png", "jpg", "jpeg"]); c1, c2 = st.columns(2); nc = c1.text_input("Cliente:", value="Fenix Engenharia"); to = c2.selectbox("Segmento:", ["Construção Geral", "Elétrica", "Hidráulica", "Pintura"], index=1)
+# --- ABA 2: ENGENHARIA DE CUSTOS E CÁLCULO DA HORA TÉCNICA ---
+with aba_calcular_hora:
+    st.header("🧮 Configuração do Preço por Hora Técnico")
+    st.write("Preencha suas metas de ganho e tempo disponível para o sistema estruturar o seu preço de mercado.")
     
-    lista_s = list(st.session_state.db_s["Serviço"].values) if not st.session_state.db_s.empty else ["Nenhum cadastrado"]
-    sv = st.selectbox("Serviço:", lista_s)
-    sp = st.text_input("Ajuste o escopo:", value=sv)
-    nr = st.text_input("Responsável Técnico:", value="Ronilson Richardson Fragoso de Souza"); st.write("---"); tc = st.selectbox("Critério:", ["Por Empreitada", "Por Hora"]); v_s = 0.0
+    # 1. Parâmetros Individuais Principais
+    st.subheader("1. Metas Financeiras e Tempo")
+    col_t1, col_t2 = st.columns(2)
+    with col_t1:
+        salario_desejado = st.number_input("Quanto quer ganhar livre por mês (Seu Pró-labore - R$):", min_value=0.0, value=4000.0, step=100.0)
+        dias_trabalhados = st.number_input("Dias operacionais trabalhados por mês:", min_value=1, max_value=31, value=22)
+    with col_t2:
+        horas_por_dia = st.number_input("Horas produtivas faturadas por dia (Trabalho na obra):", min_value=1.0, max_value=24.0, value=6.0, step=0.5)
+        margem_lucro = st.slider("Margem de lucro desejada para a empresa (%)", min_value=0, max_value=50, value=20, step=5)
+        
+    horas_totais_mes = dias_trabalhados * horas_por_dia
+    st.caption(f"ℹ️ Seu tempo de trabalho faturável total no mês é de **{horas_totais_mes:.1f} horas**.")
     
-    if tc == "Por Empreitada":
-        filtro_s = st.session_state.db_s[st.session_state.db_s["Serviço"] == sv]
-        sb = filtro_s["Preço Padrão"].values[0] if not filtro_s.empty else 0.0
-        c1, c2 = st.columns(2); qp = c1.number_input("Quantidade:", min_value=1.0, value=10.0); pp = c2.number_input("Preço Unitário (R$):", min_value=0.0, value=float(sb)); v_s = qp * pp
-    else: c1, c2 = st.columns(2); qh = c1.number_input("Horas estimadas:", min_value=0.5, value=4.0); ph = c2.number_input("Valor da hora (R$):", min_value=0.0, value=st.session_state.get("pr_h", 60.0)); v_s = qh * ph
+    st.write("---")
+    # 2. Cadastro e Gerenciamento Veicular
+    st.subheader("2. Parâmetros e Custos de Logística do Veículo")
     
-    st.write("---"); ta = st.checkbox("Demanda ajudantes?"); c_aj = 0.0
-    if ta: c1, c2 = st.columns(2); qa = c1.number_input("Quantidade ajudantes:", min_value=1, value=1); da = c2.number_input("Diária ajudante (R$):", min_value=0.0, value=120.0); nj = st.number_input("Quantidade diárias:", min_value=1, value=1); c_aj = qa * da * nj
-    st.write("---"); ob = st.checkbox("Conceder bônus?"); v_b, d_b = 0.0, ""
-    if ob: c1, c2 = st.columns(2); d_b = c1.text_input("Descrição Bônus:"); v_b = c2.number_input("Valor Bônus (R$):", min_value=0.0, value=150.0)
-    st.write("---"); im = st.toggle("Somar materiais no preço final?", value=False)
-    
-    lista_m = list(st.session_state.db_m["Material"].values) if not st.session_state.db_m.empty else ["Nenhum cadastrado"]
-    m_sel = st.selectbox("Insumo Almoxarifado:", lista_m)
-    filtro_m = st.session_state.db_m[st.session_state.db_m["Material"] == m_sel]
-    ms = filtro_m["Preço Unitário"].values[0] if not filtro_m.empty else 0.0
-    
-    c1, c2, c3 = st.columns(3); n_m = c1.text_input("Material Obra:", value=m_sel); q_m = c2.number_input("Qtd:", min_value=1, value=1); p_m = c3.number_input("Preço Un (R$):", min_value=0.0, value=float(ms))
-    if st.button("➕ Adicionar Material"): st.session_state.df_o = pd.concat([st.session_state.df_o, pd.DataFrame([{"Item": n_m, "Qtd": q_m, "Preço Un.": p_m, "Total": q_m * p_m}])], ignore_index=True)
-    
-    t_mat = 0.0
-    if not st.session_state.df_o.empty:
-        df_e = st.data_editor(st.session_state.df_o, use_container_width=True, num_rows="dynamic"); df_e["Total"] = df_e["Qtd"] * df_e["Preço Un."]; st.session_state.df_o = df_e; t_mat = df_e["Total"].sum()
-        if st.button("🗑️ Resetar Materiais"): st.session_state.df_o = pd.DataFrame(columns=["Item", "Qtd", "Preço Un.", "Total"]); st.rerun()
-    st.write("---"); tt = st.selectbox("Transporte:", ["Preço Fixo", "KM Rodado"]); c_tr = 0.0
-    if tt == "Preço Fixo": c_tr = st.number_input("Taxa fixa (R$):", min_value=0.0, value=30.0)
-    else: c1, c2 = st.columns(2); kt = c1.number_input("Distância total (KM):", min_value=0.0, value=15.0); vk = c2.number_input("Custo por KM (R$):", min_value=0.0, value=1.50); c_tr = kt * vk
-    og = st.text_area("Notas gerais:"); dp = st.slider("Desconto MO (%)", 0, 30, 0); v_d = v_s * (dp / 100); t_g = max(0.0, (v_s - v_d) + c_aj + c_tr - v_b + (t_mat if im else 0.0)); st.write("---"); st.subheader("Resumo Financeiro"); st.markdown(f"## 💵 Total Final: **R$ {t_g:.2f}**")
+    with st.form("cad_veiculo_form", clear_on_submit=True):
+        col_v1, col_v2 = st.columns(2)
+        with col_v1:
+            v_marca = st.text_input("Marca do Veículo:")
+            v_modelo = st.text_input("Modelo do Veículo:")
+            v_tempo = st.number_input("Tempo que tenho o veículo (Anos):", min_value=0, value=1)
+            v_consumo = st.number_input("Consumo Médio de Combustível (Km/L):", min_value=1.0, value=10.0, step=0.5)
+        with col_v2:
+            v_fipe = st.number_input("Valor Atual de Mercado (Tabela FIPE - R$):", min_value=0.0, value=30000.0, step=1000.0)
+            v_seg_doc = st.number_input("Seguro + Documentação Anual total (R$):", min_value=0.0, value=1200.0, step=100.0)
+            v_manutencao = st.number_input("Gasto de Manutenção Mensal estimado (R$):", min_value=0.0, value=200.0, step=50.0)
+            
+        if st.form_submit_button("💾 Salvar Veículo na Frota"):
+            if v_marca and v_modelo:
+                novo_v = pd.DataFrame([{
+                    "Marca": v_marca, "Modelo": v_modelo, "Tempo de Uso (Anos)": v_tempo,
+                    "Consumo (Km/L)": v_consumo, "Valor FIPE (R$)": v_fipe, 
+                    "Seguro/Doc Anual (R$)": v_seg_doc, "Manutenção Mensal (R$)": v_manutencao
+                }])
+                st.session_state.db_veiculos = pd.concat([st.session_state.db_veiculos, novo_v], ignore_index=True)
+                st.success(f"Veículo {v_modelo} cadastrado com sucesso!")
+                st.rerun()
+    # Renderização da Planilha Dinâmica do Veículo
+    if not st.session_state.db_veiculos.empty:
+        df_v_editado = st.data_editor(st.session_state.db_veiculos, use_container_width=True, num_rows="dynamic")
+        st.session_state.db_veiculos = df_v_editado
+        
+        # Engenharia de depreciação (10% ao ano linear) e divisão das despesas pelo tempo mensal faturável
+        tot_fipe = df_v_editado["Valor FIPE (R$)"].sum()
+        tot_seg_anual = df_v_editado["Seguro/Doc Anual (R$)"].sum()
+        tot_man_mensal = df_v_editado["Manutenção Mensal (R$)"].sum()
+        
+        depreciacao_mensal = (tot_fipe * 0.10) / 12
+        seg_doc_mensal = tot_seg_anual / 12
+        custo_veicular_mensal_total = depreciacao_mensal + seg_doc_mensal + tot_man_mensal
+        
+        v_hora_operacional = custo_veicular_mensal_total / horas_totais_mes if horas_totais_mes > 0 else 0.0
+        st.metric(label="Total de Custo Veicular por Hora Trabalhada", value=f"R$ {v_hora_operacional:.2f}/h", delta=f"R$ {custo_veicular_mensal_total:.2f}/mês total")
+    else:
+        v_hora_operacional = 0.0
 
-    def build_pdf(v_url, uh, lf):
-        bf = BytesIO(); doc = SimpleDocTemplate(bf, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40); sty = []; s = getSampleStyleSheet(); t_s = ParagraphStyle('T', parent=s['Heading1'], fontSize=16, textColor=c.HexColor('#1A365D')); b_s = ParagraphStyle('B', parent=s['Normal'], fontSize=10, leading=14)
-        if lf:
-            try: pi = Image.open(lf); logo_p = pi.copy(); logo_p.thumbnail((120, 40)); lb = BytesIO(); logo_p.save(lb, format="PNG"); lb.seek(0); sty.append(RLImage(lb, width=logo_p.width, height=logo_p.height)); sty.append(Spacer(1, 10))
-            except: pass
-        sty.append(Paragraph("<b>PROPOSTA COMERCIAL</b>", t_s)); sty.append(Paragraph(f"<b>Cliente:</b> {nc} | <b>Segmento:</b> {to} | <b>Escopo:</b> {sp}", b_s)); sty.append(Spacer(1, 10))
-        d_f = [["Descrição", "Valor"], ["Mão de Obra", f"R$ {v_s:.2f}"], ["Desconto MO", f"- R$ {v_d:.2f}"]]
-        if ta: d_f.append(["Ajudantes", f"R$ {c_aj:.2f}"])
-        d_f.append(["Transporte", f"R$ {c_tr:.2f}"])
-        if v_b > 0: d_f.append(["Bônus", f"- R$ {v_b:.2f}"])
-        d_f.append([f"Materiais ({'Inclusos' if im else 'Cliente'})", f"R$ {t_mat:.2f}"]); d_f.append(["TOTAL LÍQUIDO", f"R$ {t_g:.2f}"]); tf = Table(d_f, colWidths=); tf.setStyle(TableStyle([('BACKGROUND', (0,0), (1,0), c.HexColor('#1A365D')), ('TEXTCOLOR', (0,0), (1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, c.HexColor('#CBD5E0')), ('FONTNAME', (0,-1), (1,-1), 'Helvetica-Bold'), ('BACKGROUND', (0,-1), (1,-1), c.HexColor('#E2E8F0')), ('PADDING', (0,0), (-1,-1), 5)])); sty.append(tf); sty.append(Spacer(1, 15))
-        if og: sty.append(Paragraph(f"<b>Notas:</b> {og}", b_s)); sty.append(Spacer(1, 15))
-        qr = qrcode.QRCode(version=1, box_size=2, border=1); qr.add_data(v_url); qr.make(fit=True); qi = qr.make_image(fill_color="black", back_color="white"); qb = BytesIO(); qi.save(qb, format="PNG"); qb.seek(0)
-        msg = f"<b>Assinado por:</b> {nr.upper()}<br/><b>Data:</b> {dt.datetime.now().strftime('%d/%m/%Y %H:%M')}<br/><b>Hash MD5:</b> {uh}"; tgv = Table([[RLImage(qb, width=60, height=65), Paragraph(msg, ParagraphStyle('G', parent=s['Normal'], fontSize=7.5, leading=10))]], colWidths=); tgv.setStyle(TableStyle([('BOX', (0,0), (-1,-1), 1, c.HexColor('#A0AEC0')), ('BACKGROUND', (0,0), (-1,-1), c.HexColor('#F7FAFC')), ('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('PADDING', (0,0), (-1,-1), 6)])); sty.append(tgv); doc.build(story=sty); bf.seek(0); return bf.getvalue()
+    st.write("---")
+    # 3. Módulo de Custos Fixos de Operação
+    st.subheader("3. Gestão e Cadastro de Custos Fixos Mensais")
+    
+    with st.form("cad_custo_fixo_form", clear_on_submit=True):
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            f_tipo = st.text_input("Tipo de Gasto (ex: Aluguel, MEI, Software):")
+        with col_f2:
+            f_valor = st.number_input("Valor Mensal do Gasto (R$):", min_value=0.0, step=10.0)
+            
+        if st.form_submit_button("➕ Adicionar Custo Fixo"):
+            if f_tipo:
+                novo_f = pd.DataFrame([{"Tipo de Gasto": f_tipo, "Valor Mensal (R$)": f_valor}])
+                st.session_state.db_custos_fixos = pd.concat([st.session_state.db_custos_fixos, novo_f], ignore_index=True)
+                st.success("Custo fixo adicionado!")
+                st.rerun()
 
-    st.write("---"); c1, c2 = st.columns(2)
-    with c1:
-        if st.button("Gerar PDF GOV 📄"):
-            uh = hashlib.md5(f"{nc}{t_g}{dt.datetime.now().timestamp()}".encode()).hexdigest(); pdf = build_pdf(f"https://streamlit.app{uh}", uh, logo_upload)
-            st.download_button("📥 Baixar PDF", data=pdf, file_name=f"Orcamento_{nc}.pdf", mime="application/pdf")
-    with col2:
-        if st.button("Gerar WhatsApp 💬"):
-            txt = f"*PROPOSTA DE SERVIÇOS*\n\nOlá, *{nc}*.\nEscopo: {sp}.\n🔹 *Mão de Obra:* {tc}\n🔹 *Transporte:* R$ {c_tr:.2f}\n💰 *TOTAL INVESTIDO: R$ {t_g:.2f}*\n\nValidado com assinatura padrão GOV."
-            st.text_area("Mensagem:", value=txt, height=120)
+    # Cálculo em tempo real do custo por hora para cada linha cadastrada
+    if not st.session_state.db_custos_fixos.empty:
+        df_f_trabalho = st.session_state.db_custos_fixos.copy()
+        
+        # Calcula dinamicamente o valor por hora de cada custo baseado no tempo mensal faturável
+        df_f_trabalho["Valor por Hora (R$)"] = df_f_trabalho["Valor Mensal (R$)"] / (horas_totais_mes if horas_totais_mes > 0 else 1)
+        df_f_trabalho["Valor por Hora (R$)"] = df_f_trabalho["Valor por Hora (R$)"].round(2)
+        
+        st.write("📝 **Planilha de Custos Fixos Ativos (Editável em tempo real):**")
+        df_f_editado = st.data_editor(df_f_trabalho, use_container_width=True, num_rows="dynamic")
+        
+        # Atualiza a tabela base com os dados modificados do editor
+        st.session_state.db_custos_fixos = df_f_editado[["Tipo de Gasto", "Valor Mensal (R$)"]]
+        
+        total_fixo_mensal = df_f_editado["Valor Mensal (R$)"].sum()
+        f_hora_operacional = total_fixo_mensal / horas_totais_mes if horas_totais_mes > 0 else 0.0
+        st.metric(label="Total de Custo Fixo por Hora Trabalhada", value=f"R$ {f_hora_operacional:.2f}/h", delta=f"R$ {total_fixo_mensal:.2f}/mês total")
+    else:
+        f_hora_operacional = 0.0
+
+    st.write("---")
+    # 4. Cálculo de Fechamento da Hora Técnica Sugerida
+    st.subheader("📊 Engenharia Final de Preço")
+    
+    salario_por_hora = salario_desejado / horas_totais_mes if horas_totais_mes > 0 else 0.0
+    custo_hora_bruto = salario_por_hora + v_hora_operacional + f_hora_operacional
+    
+    # Aplicação do Markup de Margem de Lucro sobre o custo bruto por hora
+    if margem_lucro < 100:
+        hora_tecnica_final = custo_hora_bruto / (1 - (margem_lucro / 100))
+    else:
+        hora_tecnica_final = custo_hora_bruto
+        
+    st.write(f"• **Seu salário limpo por hora trabalhada:** R$ {salario_por_hora:.2f}/h")
+    st.write(f"• **Custo operacional bruto total por hora:** R$ {custo_hora_bruto:.2f}/h")
+    st.markdown(f"### 🎯 Preço da sua Hora Técnica Sugerida (Com {margem_lucro}\% de Margem): **R$ {hora_tecnica_final:.2f}/h**")
+    
+    if st.button("🚀 Sincronizar e Gravar Preço da Hora no Sistema"):
+        st.session_state["preco_hora_tecnica_fechada"] = round(hora_tecnica_final, 2)
+        st.success("Preço da hora gravado com sucesso! Pronto para ser puxado no fechamento dos orçamentos.")
