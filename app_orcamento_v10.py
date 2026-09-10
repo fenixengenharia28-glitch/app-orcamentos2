@@ -189,3 +189,5 @@ with aba_orc:
 
     st.write("---")
     st.header("👷 Quantificação da Mão de Obra")
+    tipo_cobranca = st.selectbox("Critério de precificação:", ["Por Empreitada / Ponto", "Por
+    Hora Técnica"])
