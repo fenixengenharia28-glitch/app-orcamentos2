@@ -187,3 +187,7 @@ with aba_orc:
     servico_principal = st.text_input("Ajuste a descrição do escopo se necessário:", value=servico_selecionado)
     
     nome_responsavel = st.text_input("Nome do Responsável Técnico (Para Assinatura GOV):", value="Ronilson Richardson Fragoso de Souza")
+    
+    st.write("---")
+    st.header("👷 Quantificação da Mão de Obra")
+    tipo_cobranca = st.selectbox("Critério de precificação:", ["Por Empreitada / Ponto", "Por Hora Técnica"])
