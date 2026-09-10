@@ -43,7 +43,7 @@ if "df_b_sel" not in st.session_state:
     st.session_state.df_b_sel = pd.DataFrame(columns=["ID", "Descrição", "Valor (R$)"])
 
 st.title("🏗️ Sistema Fênix Engenharia")
-st.caption("Versão v11.3 - Correção do Custo das Tabelas e colWidths do PDF")
+st.caption("Versão v11.4 - Ajuste de colWidths Fixos e Divisão em 5 Blocos Curtos")
 a_orc, a_calc, a_mat, a_serv = st.tabs(["📋 Proposta Comercial", "🧮 Calcular Minha Hora", "📦 Materiais", "🛠️ Serviços"])
 with a_calc:
     st.header("🧮 Preço da Hora Técnica")
@@ -75,7 +75,6 @@ with a_calc:
         st.session_state.db_v = st.data_editor(st.session_state.db_v, use_container_width=True)
         cm = ((st.session_state.db_v["Valor FIPE (R$)"].sum() * 0.10 / 12) + (st.session_state.db_v["IPVA Anual"].sum() / 12) + st.session_state.db_v["Manutenção Mensal"].sum()) / ht if ht > 0 else 0.0
     else: cm = 0.0
-    
     with st.form("c_f", clear_on_submit=True):
         ft = st.text_input("Gasto Fixo:")
         fv = st.number_input("Valor Mensal:", min_value=0.0)
@@ -96,7 +95,8 @@ with a_calc:
     st.subheader("📊 Demonstrativo do Preço por Hora")
     col1, col2 = st.columns(2); col1.metric("Sua Hora de Trabalho Efetivo", f"R$ {sl_h:.2f}/h"); col2.metric("Hora de Custos Operacionais", f"R$ {c_op_h:.2f}/h")
     st.markdown(f"### 🎯 Preço Final Combinado: **R$ {h_fin:.2f}/h**")
-    if st.button("🚀 Gravar Preço da Hora"): st.session_state["pr_h_f"] = round(h_fin, 2); st.success("Gravar com sucesso!")
+    if st.button("🚀 Gravar Preço da Hora"): st.session_state["pr_h_f"] = round(h_fin, 2); st.success("Hora gravada com sucesso!")
+
 with a_mat:
     st.header("📦 Catálogo de Materiais")
     with st.form("f_m", clear_on_submit=True):
@@ -183,7 +183,6 @@ with a_orc:
     st.write(f"**Total Bônus:** R$ {t_bon:.2f} | **Subtotal:** R$ {sub_bruto:.2f} | **Desconto:** R$ {v_desc:.2f}")
     st.warning(f"💳 **TOTAL A PAGAR (ATÉ 10X CARTÃO): R$ {tot_cartao:.2f}**")
     st.success(f"💰 **TOTAL À VISTA (DINHEIRO OU PIX): R$ {tot_vista:.2f}**")
-
     def build_pdf_fenix(lf, q_url, h_val):
         bf = BytesIO(); doc = SimpleDocTemplate(bf, pagesize=letter, rightMargin=35, leftMargin=45, topMargin=40, bottomMargin=40); sty = []; s = getSampleStyleSheet()
         t_sty = ParagraphStyle('T', parent=s['Heading1'], fontSize=13, textColor=colors.HexColor('#1A365D')); b_sty = ParagraphStyle('B', parent=s['Normal'], fontSize=9, leading=13)
@@ -194,8 +193,7 @@ with a_orc:
             try: pi = Image.open(lf); logo_p = pi.copy(); logo_p.thumbnail((90, 40)); lb = BytesIO(); logo_p.save(lb, format="PNG"); lb.seek(0); l_bx = RLImage(lb, width=logo_p.width, height=logo_p.height)
             except: pass
             
-        # CORREÇÃO DO ERRO DA IMAGEM: Passados os tamanhos fixos das 3 colunas [Frete, Centro, Logo] em pontos
-        t_hdr = Table([[RLImage(BytesIO(qb.getvalue()), width=45, height=45), Paragraph(tx_emp, ParagraphStyle('C', parent=s['Normal'], fontSize=8, leading=11, alignment=1)), l_bx]], colWidths=[60, 360, 100])
+        t_hdr = Table([[RLImage(BytesIO(qb.getvalue()), width=45, height=45), Paragraph(tx_emp, ParagraphStyle('C', parent=s['Normal'], fontSize=8, leading=11, alignment=1)), l_bx]], colWidths=[60, 350, 100])
         t_hdr.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE')])); sty.append(t_hdr); sty.append(Spacer(1, 10))
         sty.append(Paragraph(f"<b>Descrição Técnica do Serviço:</b> {ds_serv}", b_sty)); sty.append(Spacer(1, 4))
         sty.append(Paragraph(f"<b>Validade:</b> {val_d} dias | <b>Emissão:</b> {dt_e.strftime('%d/%m/%Y')} | <b>Válido Até:</b> {dt_v.strftime('%d/%m/%Y')}", b_sty)); sty.append(Spacer(1, 8))
@@ -203,22 +201,31 @@ with a_orc:
         sty.append(Paragraph("<b>Mão de Obra</b>", t_sty))
         d_mo = [["ID", "Descrição Mão de Obra", "Valor"]]
         for _, r in st.session_state.df_s_sel.iterrows(): d_mo.append([r["ID"], r["Descrição"], f"R$ {r['Valor (R$)']:.2f}"])
-        t1 = Table(d_mo, colWidths=[60, 340, 120]); t1.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1A365D')), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')), ('PADDING', (0,0), (-1,-1), 4)])); sty.append(t1); sty.append(Spacer(1, 10))
+        t1 = Table(d_mo, colWidths=[70, 320, 120]); t1.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1A365D')), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')), ('PADDING', (0,0), (-1,-1), 4)])); sty.append(t1); sty.append(Spacer(1, 10))
         
         sty.append(Paragraph("<b>Materiais</b>", t_sty))
         d_ma = [["ID", "Descrição", "Un", "Qtd", "Val Un", "Val Tot"]]
         for _, r in st.session_state.df_m_sel.iterrows(): d_ma.append([r["ID"], r["Descrição"], r["Unidade"], str(int(r["Quantidade"])), f"R$ {r['Valor Unitário (R$)']:.2f}", f"R$ {r['Valor Total (R$)']:.2f}"])
-        t2 = Table(d_ma, colWidths=[60, 220, 40, 40, 80, 80]); t2.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2B6CB0')), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')), ('PADDING', (0,0), (-1,-1), 4)])); sty.append(t2); sty.append(Spacer(1, 10))
+        t2 = Table(d_ma, colWidths=[60, 210, 40, 40, 80, 80]); t2.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2B6CB0')), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')), ('PADDING', (0,0), (-1,-1), 4)])); sty.append(t2); sty.append(Spacer(1, 10))
         
         if t_bon > 0:
             sty.append(Paragraph("<b>Bônus</b>", t_sty))
             d_bo = [["ID", "Descrição", "Valor"]]
             for _, r in st.session_state.df_b_sel.iterrows(): d_bo.append([r["ID"], r["Descrição"], f"R$ {r['Valor (R$)']:.2f}"])
-            t3 = Table(d_bo, colWidths=[60, 340, 120]); t3.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#4A5568')), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')), ('PADDING', (0,0), (-1,-1), 4)])); sty.append(t3); sty.append(Spacer(1, 10))
+            t3 = Table(d_bo, colWidths=[70, 320, 120]); t3.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#4A5568')), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')), ('PADDING', (0,0), (-1,-1), 4)])); sty.append(t3); sty.append(Spacer(1, 10))
         
         d_ch = [["Total Bônus", f"R$ {t_bon:.2f}"], ["Subtotal", f"R$ {sub_bruto:.2f}"], [f"Desconto ({ds_s}%)", f"R$ {v_desc:.2f}"], ["TOTAL A PAGAR (ATÉ 10X CARTÃO)", f"R$ {tot_cartao:.2f}"], ["TOTAL À VISTA (DINHEIRO OU PIX)", f"R$ {tot_vista:.2f}"]]
-        t4 = Table(d_ch, colWidths=[360, 160]); t4.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')), ('FONTNAME', (0,-2), (1,-1), 'Helvetica-Bold'), ('BACKGROUND', (0,-2), (0,-2), colors.HexColor('#FED7D7')), ('BACKGROUND', (0,-1), (1,-1), colors.HexColor('#C6F6D5')), ('PADDING', (0,0), (-1,-1), 4)])); sty.append(t4)
+        t4 = Table(d_ch, colWidths=[350, 160]); t4.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')), ('FONTNAME', (0,-2), (1,-1), 'Helvetica-Bold'), ('BACKGROUND', (0,-2), (0,-2), colors.HexColor('#FED7D7')), ('BACKGROUND', (0,-1), (1,-1), colors.HexColor('#C6F6D5')), ('PADDING', (0,0), (-1,-1), 4)])); sty.append(t4)
         
-        # Selo de Verificação GOV com largura configurada
         now_t = dt.datetime.now().strftime('%d/%m/%Y %H:%M')
-        msg = f"<b>Assinado digitalmente por:</b> FÊNIX ENGENHARIA<br/><b>Data da Chancelagem:</b> {now_t} | <b>Padrão:</b> ICP-Brasil Equivalente V2<br/><b>Chave Identificadora de Autenticidade (MD5):</b> {h_val}" tgv = Table([[RLImage(BytesIO(qb.getvalue()), width=55, height=55), Paragraph(msg, ParagraphStyle('G', parent=s['Normal'], fontSize=7.5, leading=10))]], colWidths=[70, 450])tgv.setStyle(TableStyle([('BOX', (0,0), (-1,-1), 1, colors.HexColor('#A0AEC0')), ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F7FAFC')), ('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('PADDING', (0,0), (-1,-1), 6)]))sty.append(Spacer(1, 15)); sty.append(tgv)doc.build(sty); bf.seek(0); return bf.getvalue()if st.button("🚀 Chancelar Proposta Comercial"):hv = hashlib.md5(f"{nc}{tot_vista}".encode()).hexdigest(); l_wp = f"whatsapp.com{wpp_num}&text=Aprovar%20Orcamento%20{hv}"pdf = build_pdf_fenix(logo_upload, l_wp, hv)st.download_button(label="📥 Baixar Proposta Comercial em PDF", data=pdf, file_name=f"Proposta_Fenix_{nc}.pdf", mime="application/pdf")
+        msg = f"<b>Assinado digitalmente por:</b> FÊNIX ENGENHARIA<br/><b>Data da Chancelagem:</b> {now_t} | <b>Padrão:</b> ICP-Brasil Equivalente V2<br/><b>Chave Identificadora de Autenticidade (MD5):</b> {h_val}"
+        tgv = Table([[RLImage(BytesIO(qb.getvalue()), width=55, height=55), Paragraph(msg, ParagraphStyle('G', parent=s['Normal'], fontSize=7.5, leading=10))]], colWidths=[65, 445])
+        tgv.setStyle(TableStyle([('BOX', (0,0), (-1,-1), 1, colors.HexColor('#A0AEC0')), ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F7FAFC')), ('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('PADDING', (0,0), (-1,-1), 6)]))
+        sty.append(Spacer(1, 15)); sty.append(tgv)
+        
+        doc.build(sty); bf.seek(0); return bf.getvalue()
+
+    if st.button("🚀 Chancelar Proposta Comercial"):
+        hv = hashlib.md5(f"{nc}{tot_vista}".encode()).hexdigest(); l_wp = f"https://whatsapp.com{wpp_num}&text=Aprovar%20Orcamento%20{hv}"
+        pdf = build_pdf_fenix(logo_upload, l_wp, hv)
+        st.download_button(label="📥 Baixar Proposta Comercial em PDF", data=pdf, file_name=f"Proposta_Fenix_{nc}.pdf", mime="application/pdf")
