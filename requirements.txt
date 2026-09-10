@@ -5,4 +5,5 @@ qrcode
 pillow
 st-files-connection
 gspread
+st-theme
 streamlit-gsheets
