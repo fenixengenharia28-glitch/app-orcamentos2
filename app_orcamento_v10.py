@@ -190,3 +190,10 @@ with aba_orc:
     st.write("---")
     st.header("👷 Quantificação da Mão de Obra")
     tipo_cobranca = st.selectbox("Critério de precificação:", ["Por Empreitada / Ponto", "Por Hora Técnica"])
+    
+    valor_servico = 0.0
+    if tipo_cobranca == "Por Empreitada / Ponto":
+        preco_sugerido_base =
+        st.session_state.db_servicos[st.session_state.db_servicos["Serviço"] ==
+        servico_selecionado]["Preço Padrão"].values
+        col_srv1, col_srv2 = st.columns(2)
