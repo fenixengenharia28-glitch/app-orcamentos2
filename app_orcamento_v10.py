@@ -192,6 +192,7 @@ with aba_orc:
     tipo_cobranca = st.selectbox("Critério de precificação:", ["Por Empreitada / Ponto", "Por Hora Técnica"])
     
     valor_servico = 0.0
-    if tipo_cobranca == "Por Empreitada / Ponto":
-        preco_sugerido_base = st.session_state.db_servicos[st.session_state.db_servicos["Serviço"] == servico_selecionado]["Preço Padrão"].valuescol_srv1, col_srv2 = st.columns(2)
-        with col_srv1: qtd_pontos = st.number_input("Quantidade de Unidades/Pontos/M²:", min_value=1.0, value=10.0)
+    if tipo_cobranca == "Por Empreitada / Ponto": preco_sugerido_base = st.session_state.db_servicos[st.session_state.db_servicos["Serviço"] == servico_selecionado]["Preço Padrão"].valuescol_srv1, col_srv2 = st.columns(2)
+    with col_srv1: qtd_pontos = st.number_input("Quantidade de Unidades/Pontos/M²:", min_value=1.0, value=10.0)
+    with col_srv2: preco_ponto = st.number_input("Preço por Unidade (R$):", min_value=0.0, value=float(preco_sugerido_base))
+        
