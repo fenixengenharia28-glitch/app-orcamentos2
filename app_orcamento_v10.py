@@ -33,7 +33,6 @@ if "db_s" not in st.session_state:
         {"ID": "SRV-001", "Descrição": "Instalação de Tomada", "Unidade": "Ponto", "Valor (R$)": 50.00}
     ])
 
-# ATUALIZADO: Nome oficial da empresa fixado no cadastro padrão
 if "db_clientes" not in st.session_state:
     st.session_state.db_clientes = pd.DataFrame([
         {"ID": "CLI-001", "Nome / Razão Social": "FENIX ENGENHARIA E COMERCIO LTDA", "CPF / CNPJ": "52.769.953/0001-12", "Telefone": "(31) 99539-2027", "Endereço Completo": "Avenida Getulio Vargas, nº 671, Savassi, Belo Horizonte - MG"}
@@ -46,13 +45,13 @@ if "df_m_sel" not in st.session_state:
     st.session_state.df_m_sel = pd.DataFrame(columns=["ID", "Descrição", "Unidade", "Quantidade", "Valor Unitário (R$)", "Valor Total (R$)"])
 
 if "df_s_sel" not in st.session_state:
-    st.session_state.df_s_sel = pd.DataFrame(columns=["ID", "Descrição", "Quantidade", "Valor Unitário (R$)", "Valor Total (R$)"])
+    st.session_state.df_s_sel = pd.DataFrame(columns=["ID", "Descrição", "Critério", "Quantidade/Horas", "Valor Unitário (R$)", "Valor Total (R$)"])
 
 if "df_b_sel" not in st.session_state:
     st.session_state.df_b_sel = pd.DataFrame(columns=["ID", "Descrição", "Valor (R$)"])
 
 st.title("🏗️ Propostas - Fênix Engenharia")
-st.caption("Versão v14.2 - Ajuste de Nome Corporativo e Proteção Dinâmica de Busca por ID")
+st.caption("Versão v14.3 - Inclusão da Seleção entre Cobrança por Ponto ou Hora na Mão de Obra")
 a_orc, a_clientes, a_calc, a_mat, a_serv = st.tabs(["📋 Proposta Comercial", "👥 Cadastro de Clientes", "🧮 Calcular Minha Hora", "📦 Materiais", "🛠️ Serviços"])
 with a_clientes:
     st.header("👥 Central e Cadastro Geral de Clientes")
@@ -84,8 +83,6 @@ with a_clientes:
         st.write("📝 **Fichas Cadastrais Ativas (Altere dados clicando direto nas células):**")
         df_c_editado = st.data_editor(st.session_state.db_clientes, use_container_width=True, num_rows="dynamic")
         st.session_state.db_clientes = df_c_editado
-    else:
-        st.info("Nenhum cliente armazenado. Cadastre no formulário acima.")
 with a_calc:
     st.header("🧮 Preço da Hora Técnica")
     sd = st.number_input("Meta de Pró-labore mensal (R$):", min_value=0.0, value=4000.0)
@@ -169,8 +166,7 @@ with a_orc:
         if logo_upload is not None:
             nome_da_logo = logo_upload.name
             if nome_da_logo not in st.session_state.db_logos:
-                st.session_state.db_logos[nome_da_logo] = logo_upload.read()
-                st.success(f"Logo gravada!")
+                st.session_state.db_logos[nome_da_logo] = logo_upload.read(); st.success(f"Logo gravada!")
     with col_l2:
         opcoes_logos = list(st.session_state.db_logos.keys()) if st.session_state.db_logos else ["Nenhuma logo salva"]
         logo_selecionada = st.selectbox("Escolha a logo ativa:", opcoes_logos)
@@ -182,7 +178,6 @@ with a_orc:
     c_selecionado = st.selectbox("Selecione o Cliente Cadastrado:", lista_clientes_ativos)
     
     if not st.session_state.db_clientes.empty and c_selecionado != "Nenhum cliente cadastrado":
-        # CORREÇÃO DEFINITIVA: Extrai estritamente a posição [0] do split para bater com o ID isolado da tabela
         id_real_c = c_selecionado.split(" - ")[0]
         ficha_c = st.session_state.db_clientes[st.session_state.db_clientes["ID"] == id_real_c]
         if not ficha_c.empty:
@@ -190,8 +185,7 @@ with a_orc:
             cnpj_c = str(ficha_c["CPF / CNPJ"].values[0])
             end_c = str(ficha_c["Endereço Completo"].values[0])
         else: nc, cnpj_c, end_c = "Cliente Não Informado", "00.000.000/0001-00", "Endereço Não Informado"
-    else:
-        nc, cnpj_c, end_c = "Cliente Não Informado", "00.000.000/0001-00", "Endereço Não Informado"
+    else: nc, cnpj_c, end_c = "Cliente Não Informado", "00.000.000/0001-00", "Endereço Não Informado"
         
     ds_serv = st.text_area("Descrição Geral do Serviço Executado:", value="Execução de Infraestrutura e Reforma Técnica.")
     c1, c2, c3 = st.columns(3); val_d = c1.number_input("Validade (Dias):", min_value=1, value=10); dt_e = c2.date_input("Emissão:", value=dt.date.today()); dt_v = c3.date_input("Válido Até:", value=dt.date.today()+dt.timedelta(days=int(val_d)))
@@ -199,14 +193,26 @@ with a_orc:
     st.write("---"); st.subheader("👷 Mão de Obra")
     lista_s = [f"{r['ID']} - {r['Descrição']}" for idx, r in st.session_state.db_s.iterrows()] if not st.session_state.db_s.empty else []
     if lista_s:
-        s_sel = st.selectbox("Vincular Serviço à Proposta:", lista_s)
-        q_srv_solicitada = st.number_input("Quantidade do Serviço:", min_value=1, value=1)
+        s_sel = st.selectbox("Selecione o Serviço Técnico:", lista_s)
+        
+        # INCLUSÃO SOLICITADA: Seleção dinâmica do critério de faturamento da mão de obra
+        tipo_cobranca_mo = st.selectbox("Critério de Faturamento da Mão de Obra:", ["Por Empreitada / Ponto", "Por Hora Técnica"])
+        
+        if tipo_cobranca_mo == "Por Empreitada / Ponto":
+            q_srv_solicitada = st.number_input("Quantidade de Pontos / Medidas de Execução:", min_value=1, value=1)
+        else:
+            q_srv_solicitada = st.number_input("Quantidade de Horas Técnicas Estimadas:", min_value=1.0, value=1.0, step=0.5)
+            
         if st.button("➕ Vincular Serviço"):
             id_limpo_s = s_sel.split(" - ")[0]
             item_filtrado_s = st.session_state.db_s[st.session_state.db_s["ID"] == id_limpo_s]
             if not item_filtrado_s.empty:
                 it_s = item_filtrado_s.iloc[0]
-                st.session_state.df_s_sel = pd.concat([st.session_state.df_s_sel, pd.DataFrame([{"ID": it_s["ID"], "Descrição": it_s["Descrição"], "Quantidade": q_srv_solicitada, "Valor Unitário (R$)": it_s["Valor (R$)"], "Valor Total (R$)": q_srv_solicitada * it_s["Valor (R$)"]}])], ignore_index=True); st.rerun()
+                val_unit_mo = float(it_s["Valor (R$)"]) if tipo_cobranca_mo == "Por Empreitada / Ponto" else float(st.session_state.get("pr_h_f", 60.0))
+                desc_final_mo = f"{it_s['Descrição']} ({'Ponto' if tipo_cobranca_mo == 'Por Empreitada / Ponto' else 'Hora'})"
+                
+                st.session_state.df_s_sel = pd.concat([st.session_state.df_s_sel, pd.DataFrame([{"ID": it_s["ID"], "Descrição": desc_final_mo, "Quantidade": q_srv_solicitada, "Valor Unitário (R$)": val_unit_mo, "Valor Total (R$)": q_srv_solicitada * val_unit_mo}])], ignore_index=True)
+                st.success("Mão de obra vinculada!"); st.rerun()
                 
     if not st.session_state.df_s_sel.empty:
         if st.checkbox("Excluir Serviço Vinculado"):
@@ -259,7 +265,6 @@ with a_orc:
         t_sty = ParagraphStyle('T', parent=s['Heading1'], fontSize=12, textColor=colors.HexColor('#1A365D'), spaceBefore=10, spaceAfter=4)
         b_sty = ParagraphStyle('B', parent=s['Normal'], fontSize=9, leading=13, spaceAfter=4)
         
-        # ATUALIZADO: Nome definitivo inserido na estampa de texto do PDF
         tx_emp = "<b>FENIX ENGENHARIA E COMERCIO LTDA</b> - CNPJ: 52.769.953/0001-12<br/>Endereço: Avenida Getulio Vargas, nº 671, 9º Andar, Sala 1.051, Bairro Savassi, Belo Horizonte - MG, Cep: 30112-021"
         l_bx = Paragraph("", b_sty)
         
@@ -283,7 +288,7 @@ with a_orc:
         
         sty.append(Paragraph("<b>Mão de Obra</b>", t_sty))
         d_mo = [["ID", "Descrição Mão de Obra", "Qtd", "Val Un", "Val Tot"]]
-        for _, r in st.session_state.df_s_sel.iterrows(): d_mo.append([r["ID"], r["Descrição"], str(int(r["Quantidade"])), f"R$ {r['Valor Unitário (R$)']:.2f}", f"R$ {r['Valor Total (R$)']:.2f}"])
+        for _, r in st.session_state.df_s_sel.iterrows(): d_mo.append([r["ID"], r["Descrição"], f"{r['Quantidade']:.1f}" if isinstance(r['Quantidade'], float) else str(r['Quantidade']), f"R$ {r['Valor Unitário (R$)']:.2f}", f"R$ {r['Valor Total (R$)']:.2f}"])
         t1 = Table(d_mo, colWidths=(60, 240, 40, 80, 100)); t1.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1A365D')), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')), ('PADDING', (0,0), (-1,-1), 4)])); sty.append(t1); sty.append(Spacer(1, 10))
         
         sty.append(Paragraph("<b>Materiais</b>", t_sty))
