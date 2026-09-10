@@ -12,7 +12,6 @@ from PIL import Image
 
 st.set_page_config(page_title="Fênix Engenharia", page_icon="🏗️", layout="centered")
 
-# Inicialização dos bancos de dados internos em memória se não existirem
 if "db_v" not in st.session_state:
     st.session_state.db_v = pd.DataFrame([
         {"Tipo": "Carro", "Marca": "Fiat", "Modelo": "Uno", "Tempo de Uso (Anos)": 2, "Consumo (Km/L)": 12.0, "Valor FIPE (R$)": 35000.0, "IPVA Anual": 1400.0, "Manutenção Mensal": 200.0}
@@ -49,7 +48,7 @@ if "df_b_sel" not in st.session_state:
     st.session_state.df_b_sel = pd.DataFrame(columns=["ID", "Descrição", "Valor (R$)"])
 
 st.title("🏗️ Propostas - Fênix Engenharia")
-st.caption("Versão v13.1 - Correção Definitiva do Erro PDF e Exibição de Dados do Cliente")
+st.caption("Versão v13.2 - Correção do NameError st.expander e Ajuste de Texto do Cliente")
 a_orc, a_clientes, a_calc, a_mat, a_serv = st.tabs(["📋 Proposta Comercial", "👥 Cadastro de Clientes", "🧮 Calcular Minha Hora", "📦 Materiais", "🛠️ Serviços"])
 with a_clientes:
     st.header("👥 Central e Cadastro Geral de Clientes")
@@ -71,7 +70,8 @@ with a_clientes:
                 st.rerun()
 
     if not st.session_state.db_clientes.empty:
-        with St.expander("🗑️ Remover Cliente Registrado"):
+        # CORREÇÃO DEFINITIVA: Alterado de St.expander com S maiúsculo para st.expander minúsculo
+        with st.expander("🗑️ Remover Cliente Registrado"):
             cli_remover = st.selectbox("Selecione o registro para deletar permanentemente:", [f"{r['ID']} - {r['Nome / Razão Social']}" for idx, r in st.session_state.db_clientes.iterrows()])
             if st.button("❌ Confirmar Exclusão do Registro", type="primary"):
                 st.session_state.db_clientes = st.session_state.db_clientes[st.session_state.db_clientes["ID"] != cli_remover.split(" - ")[0]].reset_index(drop=True)
@@ -105,7 +105,7 @@ with a_calc:
             st.session_state.db_v = pd.concat([st.session_state.db_v, pd.DataFrame([{"Tipo": vt, "Marca": vm, "Modelo": mo, "Tempo de Uso (Anos)": tp, "Consumo (Km/L)": 10.0, "Valor FIPE (R$)": vl, "IPVA Anual": ip, "Manutenção Mensal": mn}])], ignore_index=True); st.rerun()
             
     if not st.session_state.db_v.empty:
-        if st.checkbox("Excluir Veículo"):
+        with st.expander("🗑️ Excluir Veículo"):
             vr = st.selectbox("Remover veículo:", [f"{idx} - {r['Modelo']}" for idx, r in st.session_state.db_v.iterrows()])
             if st.button("Confirmar Exclusão V"): st.session_state.db_v = st.session_state.db_v.drop(int(vr.split(" - ")[0])).reset_index(drop=True); st.rerun()
         st.session_state.db_v = st.data_editor(st.session_state.db_v, use_container_width=True)
@@ -118,7 +118,7 @@ with a_calc:
         if st.form_submit_button("➕ Adicionar Gasto") and ft: st.session_state.db_c = pd.concat([st.session_state.db_c, pd.DataFrame([{"Tipo de Gasto": ft, "Valor Mensal (R$)": fv}])], ignore_index=True); st.rerun()
             
     if not st.session_state.db_c.empty:
-        if st.checkbox("Excluir Despesa"):
+        with st.expander("🗑️ Excluir Despesa"):
             gr = st.selectbox("Remover gasto:", [f"{idx} - {r['Tipo de Gasto']}" for idx, r in st.session_state.db_c.iterrows()])
             if st.button("Confirmar Exclusão D"): st.session_state.db_c = st.session_state.db_c.drop(int(gr.split(" - ")[0])).reset_index(drop=True); st.rerun()
         df_f = st.session_state.db_c.copy(); df_f["Valor por Hora (R$)"] = (df_f["Valor Mensal (R$)"] / ht).round(2) if ht > 0 else 0.0
@@ -140,9 +140,9 @@ with a_mat:
             vf = mc / (1 - (mm / 100)) if mm < 100 else mc
             st.session_state.db_m = pd.concat([st.session_state.db_m, pd.DataFrame([{"ID": f"MAT-{len(st.session_state.db_m)+1:03d}", "Descrição": md, "Unidade": mu, "Custo (R$)": mc, "Margem (%)": mm, "Valor Unitário (R$)": round(vf, 2)}])], ignore_index=True); st.rerun()
     if not st.session_state.db_m.empty:
-        if st.checkbox("Remover Material"):
+        with st.expander("🗑️ Remover Material"):
             mr = st.selectbox("Deletar item do catálogo:", [f"{r['ID']} - {r['Descrição']}" for idx, r in st.session_state.db_m.iterrows()])
-            st.session_state.db_m = st.session_state.db_m[st.session_state.db_m["ID"] != mr.split(" - ")[0]].reset_index(drop=True); st.rerun()
+            if st.button("Confirmar Remoção M"): st.session_state.db_m = st.session_state.db_m[st.session_state.db_m["ID"] != mr.split(" - ")[0]].reset_index(drop=True); st.rerun()
         df_me = st.data_editor(st.session_state.db_m, use_container_width=True)
         df_me["Valor Unitário (R$)"] = (df_me["Custo (R$)"] / (1 - (df_me["Margem (%)"].clip(0,99)/100))).round(2); st.session_state.db_m = df_me
 
@@ -153,9 +153,9 @@ with a_serv:
         if st.form_submit_button("Salvar Serviço") and sd:
             st.session_state.db_s = pd.concat([st.session_state.db_s, pd.DataFrame([{"ID": f"SRV-{len(st.session_state.db_s)+1:03d}", "Descrição": sd, "Unidade": su, "Valor (R$)": round(sv, 2)}])], ignore_index=True); st.rerun()
     if not st.session_state.db_s.empty:
-        if st.checkbox("Remover Serviço"):
+        with st.expander("🗑️ Remover Serviço"):
             sr = st.selectbox("Deletar serviço do catálogo:", [f"{r['ID']} - {r['Descrição']}" for idx, r in st.session_state.db_s.iterrows()])
-            st.session_state.db_s = st.session_state.db_s[st.session_state.db_s["ID"] != sr.split(" - ")[0]].reset_index(drop=True); st.rerun()
+            if st.button("Confirmar Remoção S"): st.session_state.db_s = st.session_state.db_s[st.session_state.db_s["ID"] != sr.split(" - ")[0]].reset_index(drop=True); st.rerun()
         st.session_state.db_s = st.data_editor(st.session_state.db_s, use_container_width=True)
 with a_orc:
     st.subheader("📋 Configuração da Proposta Comercial - Fênix Engenharia")
@@ -167,16 +167,17 @@ with a_orc:
     
     if not st.session_state.db_clientes.empty and c_selecionado != "Nenhum cliente cadastrado":
         ficha_c = st.session_state.db_clientes[st.session_state.db_clientes["ID"] == c_selecionado.split(" - ")[0]]
-        nc = str(ficha_c["Nome / Razão Social"].values[0])
-        cnpj_c = str(ficha_c["CPF / CNPJ"].values[0])
-        end_c = str(ficha_c["Endereço Completo"].values[0])
+        # CORREÇÃO: Extração limpa em formato string puro (Sem colchetes ou aspas de arrays do Pandas)
+        nc = str(ficha_c["Nome / Razão Social"].iloc[0])
+        cnpj_c = str(ficha_c["CPF / CNPJ"].iloc[0])
+        end_c = str(ficha_c["Endereço Completo"].iloc[0])
     else:
         nc, cnpj_c, end_c = "Cliente Não Informado", "00.000.000/0001-00", "Endereço Não Informado"
         
     ds_serv = st.text_area("Descrição Geral do Serviço Executado:", value="Execução de Infraestrutura e Reforma Técnica.")
     c1, c2, c3 = st.columns(3); val_d = c1.number_input("Validade (Dias):", min_value=1, value=10); dt_e = c2.date_input("Emissão:", value=dt.date.today()); dt_v = c3.date_input("Válido Até:", value=dt.date.today()+dt.timedelta(days=int(val_d)))
     
-    st.write("---"); st.subheader(" Mão de Obra")
+    st.write("---"); st.subheader("👷 Mão de Obra")
     lista_s = [f"{r['ID']} - {r['Descrição']}" for idx, r in st.session_state.db_s.iterrows()] if not st.session_state.db_s.empty else []
     if lista_s:
         s_sel = st.selectbox("Vincular Serviço à Proposta:", lista_s)
@@ -251,7 +252,6 @@ with a_orc:
         sty.append(Paragraph(f"<b>Validade:</b> {val_d} dias | <b>Emissão:</b> {dt_e.strftime('%d/%m/%Y')} | <b>Válido Até:</b> {dt_v.strftime('%d/%m/%Y')}", b_sty))
         sty.append(Spacer(1, 5))
         
-        # INCLUSÃO SOLICITADA: Dados detalhados do cliente no cabeçalho do PDF
         sty.append(Paragraph(f"<b>Cliente / Empresa:</b> {nc} | <b>CPF / CNPJ:</b> {cnpj_c}", b_sty))
         sty.append(Paragraph(f"<b>Endereço Técnico da Obra:</b> {end_c}", b_sty))
         sty.append(Spacer(1, 8))
@@ -284,7 +284,7 @@ with a_orc:
         sty.append(Paragraph(t_obs, b_sty))
         
         sty.append(Spacer(1, 5)); sty.append(Paragraph("<b>PAGAMENTO</b>", t_sty))
-        t_pag = "1- Será considerado à vista pagamento em dinheiro ou PIX, sendo realizado 50% do valor total no ato do fechamento do serviço e 50% do valor total na entrega técnica ao finalizar as atividades descritas no escopo deste orçamento.<br/>2- Para pagamento à vista, será concedido um desconto para o cliente, conforme indicado na proposta comercial.<br/>3- O valor total poderá ser parcelado em até 10 vezes no cartão de crédito.<br/>4- Aceitamos cartões VISA e Master Card."
+        t_pag = "1- Será considerado à vista pagamento in dinheiro ou PIX, sendo realizado 50% do valor total no ato do fechamento do serviço e 50% do valor total na entrega técnica ao finalizar as atividades descritas no escopo deste orçamento.<br/>2- Para pagamento à vista, será concedido um desconto para o cliente, conforme indicado na proposta comercial.<br/>3- O valor total poderá ser parcelado em até 10 vezes no cartão de crédito.<br/>4- Aceitamos cartões VISA e Master Card."
         sty.append(Paragraph(t_pag, b_sty))
         
         now_t = dt.datetime.now().strftime('%d/%m/%Y %H:%M')
