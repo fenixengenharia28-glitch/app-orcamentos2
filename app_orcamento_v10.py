@@ -12,6 +12,7 @@ from PIL import Image
 
 st.set_page_config(page_title="Fênix Engenharia", page_icon="🏗️", layout="centered")
 
+# Inicialização dos bancos de dados internos em memória se não existirem
 if "db_v" not in st.session_state:
     st.session_state.db_v = pd.DataFrame([
         {"Tipo": "Carro", "Marca": "Fiat", "Modelo": "Uno", "Tempo de Uso (Anos)": 2, "Consumo (Km/L)": 12.0, "Valor FIPE (R$)": 35000.0, "IPVA Anual": 1400.0, "Manutenção Mensal": 200.0}
@@ -33,6 +34,11 @@ if "db_s" not in st.session_state:
         {"ID": "SRV-001", "Descrição": "Instalação de Tomada", "Unidade": "Ponto", "Valor (R$)": 50.00}
     ])
 
+if "db_clientes" not in st.session_state:
+    st.session_state.db_clientes = pd.DataFrame([
+        {"ID": "CLI-001", "Nome / Razão Social": "Fenix Engenharia e Comercio LTDA", "CPF / CNPJ": "52.769.953/0001-12", "Telefone": "(31) 99539-2027", "Endereço Completo": "Avenida Getulio Vargas, nº 671, Savassi, Belo Horizonte - MG"}
+    ])
+
 if "df_m_sel" not in st.session_state:
     st.session_state.df_m_sel = pd.DataFrame(columns=["ID", "Descrição", "Unidade", "Quantidade", "Valor Unitário (R$)", "Valor Total (R$)"])
 
@@ -43,8 +49,40 @@ if "df_b_sel" not in st.session_state:
     st.session_state.df_b_sel = pd.DataFrame(columns=["ID", "Descrição", "Valor (R$)"])
 
 st.title("🏗️ Propostas - Fênix Engenharia")
-st.caption("Versão v12.1 - Correção Definitiva nos Argumentos de colWidths das Tabelas do PDF")
-a_orc, a_calc, a_mat, a_serv = st.tabs(["📋 Proposta Comercial", "🧮 Calcular Minha Hora", "📦 Materiais", "🛠️ Serviços"])
+st.caption("Versão v13.1 - Correção Definitiva do Erro PDF e Exibição de Dados do Cliente")
+a_orc, a_clientes, a_calc, a_mat, a_serv = st.tabs(["📋 Proposta Comercial", "👥 Cadastro de Clientes", "🧮 Calcular Minha Hora", "📦 Materiais", "🛠️ Serviços"])
+with a_clientes:
+    st.header("👥 Central e Cadastro Geral de Clientes")
+    st.write("Alimente sua carteira de clientes ativos para vincular dados contratuais automaticamente nas propostas.")
+    
+    with st.form("cad_cliente_form", clear_on_submit=True):
+        c_nome = st.text_input("Nome Completo / Razão Social:")
+        col_c1, col_c2 = st.columns(2)
+        with col_c1: c_documento = st.text_input("CPF ou CNPJ do Cliente:")
+        with col_c2: c_telefone = st.text_input("Telefone de Contato (com DDD):", value="(31) ")
+        c_endereco = st.text_input("Endereço Técnico Completo (Rua, Número, Bairro, Cidade-UF):")
+        
+        if st.form_submit_button("💾 Salvar Cadastro de Cliente"):
+            if c_nome and c_documento:
+                novo_id_c = f"CLI-{len(st.session_state.db_clientes) + 1:03d}"
+                novo_cli = pd.DataFrame([{"ID": novo_id_c, "Nome / Razão Social": c_nome, "CPF / CNPJ": c_documento, "Telefone": c_telefone, "Endereço Completo": c_endereco}])
+                st.session_state.db_clientes = pd.concat([st.session_state.db_clientes, novo_cli], ignore_index=True)
+                st.success(f"Cliente '{c_nome}' registrado com sucesso!")
+                st.rerun()
+
+    if not st.session_state.db_clientes.empty:
+        with St.expander("🗑️ Remover Cliente Registrado"):
+            cli_remover = st.selectbox("Selecione o registro para deletar permanentemente:", [f"{r['ID']} - {r['Nome / Razão Social']}" for idx, r in st.session_state.db_clientes.iterrows()])
+            if st.button("❌ Confirmar Exclusão do Registro", type="primary"):
+                st.session_state.db_clientes = st.session_state.db_clientes[st.session_state.db_clientes["ID"] != cli_remover.split(" - ")[0]].reset_index(drop=True)
+                st.success("Ficha cadastral removida!")
+                st.rerun()
+
+        st.write("📝 **Fichas Cadastrais Ativas (Altere dados clicando direto nas células):**")
+        df_c_editado = st.data_editor(st.session_state.db_clientes, use_container_width=True, num_rows="dynamic")
+        st.session_state.db_clientes = df_c_editado
+    else:
+        st.info("Nenhum cliente armazenado. Cadastre no formulário acima.")
 with a_calc:
     st.header("🧮 Preço da Hora Técnica")
     sd = st.number_input("Meta de Pró-labore mensal (R$):", min_value=0.0, value=4000.0)
@@ -64,28 +102,25 @@ with a_calc:
         ip = c2.number_input("IPVA Anual:", min_value=0.0, value=1200.0)
         mn = st.number_input("Manutenção Mensal:", min_value=0.0, value=200.0)
         if st.form_submit_button("💾 Salvar Veículo") and vm and mo:
-            st.session_state.db_v = pd.concat([st.session_state.db_v, pd.DataFrame([{"Tipo": vt, "Marca": vm, "Modelo": mo, "Tempo de Uso (Anos)": tp, "Consumo (Km/L)": 10.0, "Valor FIPE (R$)": vl, "IPVA Anual": ip, "Manutenção Mensal": mn}])], ignore_index=True)
-            st.rerun()
+            st.session_state.db_v = pd.concat([st.session_state.db_v, pd.DataFrame([{"Tipo": vt, "Marca": vm, "Modelo": mo, "Tempo de Uso (Anos)": tp, "Consumo (Km/L)": 10.0, "Valor FIPE (R$)": vl, "IPVA Anual": ip, "Manutenção Mensal": mn}])], ignore_index=True); st.rerun()
             
     if not st.session_state.db_v.empty:
         if st.checkbox("Excluir Veículo"):
             vr = st.selectbox("Remover veículo:", [f"{idx} - {r['Modelo']}" for idx, r in st.session_state.db_v.iterrows()])
-            if st.button("Confirmar Exclusão V"):
-                st.session_state.db_v = st.session_state.db_v.drop(int(vr.split(" - "))).reset_index(drop=True); st.rerun()
+            if st.button("Confirmar Exclusão V"): st.session_state.db_v = st.session_state.db_v.drop(int(vr.split(" - ")[0])).reset_index(drop=True); st.rerun()
         st.session_state.db_v = st.data_editor(st.session_state.db_v, use_container_width=True)
         cm = ((st.session_state.db_v["Valor FIPE (R$)"].sum() * 0.10 / 12) + (st.session_state.db_v["IPVA Anual"].sum() / 12) + st.session_state.db_v["Manutenção Mensal"].sum()) / ht if ht > 0 else 0.0
     else: cm = 0.0
+    
     with st.form("c_f", clear_on_submit=True):
         ft = st.text_input("Gasto Fixo:")
         fv = st.number_input("Valor Mensal:", min_value=0.0)
-        if st.form_submit_button("➕ Adicionar Gasto") and ft:
-            st.session_state.db_c = pd.concat([st.session_state.db_c, pd.DataFrame([{"Tipo de Gasto": ft, "Valor Mensal (R$)": fv}])], ignore_index=True); st.rerun()
+        if st.form_submit_button("➕ Adicionar Gasto") and ft: st.session_state.db_c = pd.concat([st.session_state.db_c, pd.DataFrame([{"Tipo de Gasto": ft, "Valor Mensal (R$)": fv}])], ignore_index=True); st.rerun()
             
     if not st.session_state.db_c.empty:
         if st.checkbox("Excluir Despesa"):
             gr = st.selectbox("Remover gasto:", [f"{idx} - {r['Tipo de Gasto']}" for idx, r in st.session_state.db_c.iterrows()])
-            if st.button("Confirmar Exclusão D"):
-                st.session_state.db_c = st.session_state.db_c.drop(int(gr.split(" - "))).reset_index(drop=True); st.rerun()
+            if st.button("Confirmar Exclusão D"): st.session_state.db_c = st.session_state.db_c.drop(int(gr.split(" - ")[0])).reset_index(drop=True); st.rerun()
         df_f = st.session_state.db_c.copy(); df_f["Valor por Hora (R$)"] = (df_f["Valor Mensal (R$)"] / ht).round(2) if ht > 0 else 0.0
         st.session_state.db_c = st.data_editor(df_f, use_container_width=True)[["Tipo de Gasto", "Valor Mensal (R$)"]]
         cf_h = st.session_state.db_c["Valor Mensal (R$)"].sum() / ht if ht > 0 else 0.0
@@ -107,7 +142,7 @@ with a_mat:
     if not st.session_state.db_m.empty:
         if st.checkbox("Remover Material"):
             mr = st.selectbox("Deletar item do catálogo:", [f"{r['ID']} - {r['Descrição']}" for idx, r in st.session_state.db_m.iterrows()])
-            st.session_state.db_m = st.session_state.db_m[st.session_state.db_m["ID"] != mr.split(" - ")].reset_index(drop=True); st.rerun()
+            st.session_state.db_m = st.session_state.db_m[st.session_state.db_m["ID"] != mr.split(" - ")[0]].reset_index(drop=True); st.rerun()
         df_me = st.data_editor(st.session_state.db_m, use_container_width=True)
         df_me["Valor Unitário (R$)"] = (df_me["Custo (R$)"] / (1 - (df_me["Margem (%)"].clip(0,99)/100))).round(2); st.session_state.db_m = df_me
 
@@ -120,13 +155,24 @@ with a_serv:
     if not st.session_state.db_s.empty:
         if st.checkbox("Remover Serviço"):
             sr = st.selectbox("Deletar serviço do catálogo:", [f"{r['ID']} - {r['Descrição']}" for idx, r in st.session_state.db_s.iterrows()])
-            st.session_state.db_s = st.session_state.db_s[st.session_state.db_s["ID"] != sr.split(" - ")].reset_index(drop=True); st.rerun()
+            st.session_state.db_s = st.session_state.db_s[st.session_state.db_s["ID"] != sr.split(" - ")[0]].reset_index(drop=True); st.rerun()
         st.session_state.db_s = st.data_editor(st.session_state.db_s, use_container_width=True)
 with a_orc:
     st.subheader("📋 Configuração da Proposta Comercial - Fênix Engenharia")
     logo_upload = st.file_uploader("Upload da Logomarca (Direita do PDF):", type=["png", "jpg", "jpeg"])
     wpp_num = st.text_input("WhatsApp para QR Code (Apenas Números com DDD):", value="31995392027")
-    nc = st.text_input("Nome do Cliente:", value="Fenix Engenharia e Comercio LTDA")
+    
+    lista_clientes_ativos = [f"{r['ID']} - {r['Nome / Razão Social']}" for idx, r in st.session_state.db_clientes.iterrows()] if not st.session_state.db_clientes.empty else ["Nenhum cliente cadastrado"]
+    c_selecionado = st.selectbox("Selecione o Cliente Cadastrado:", lista_clientes_ativos)
+    
+    if not st.session_state.db_clientes.empty and c_selecionado != "Nenhum cliente cadastrado":
+        ficha_c = st.session_state.db_clientes[st.session_state.db_clientes["ID"] == c_selecionado.split(" - ")[0]]
+        nc = str(ficha_c["Nome / Razão Social"].values[0])
+        cnpj_c = str(ficha_c["CPF / CNPJ"].values[0])
+        end_c = str(ficha_c["Endereço Completo"].values[0])
+    else:
+        nc, cnpj_c, end_c = "Cliente Não Informado", "00.000.000/0001-00", "Endereço Não Informado"
+        
     ds_serv = st.text_area("Descrição Geral do Serviço Executado:", value="Execução de Infraestrutura e Reforma Técnica.")
     c1, c2, c3 = st.columns(3); val_d = c1.number_input("Validade (Dias):", min_value=1, value=10); dt_e = c2.date_input("Emissão:", value=dt.date.today()); dt_v = c3.date_input("Válido Até:", value=dt.date.today()+dt.timedelta(days=int(val_d)))
     
@@ -136,14 +182,10 @@ with a_orc:
         s_sel = st.selectbox("Vincular Serviço à Proposta:", lista_s)
         q_srv_solicitada = st.number_input("Quantidade do Serviço:", min_value=1, value=1)
         if st.button("➕ Vincular Serviço"):
-            id_limpo_s = s_sel.split(" - ")[0]
-            item_filtrado_s = st.session_state.db_s[st.session_state.db_s["ID"] == id_limpo_s]
+            item_filtrado_s = st.session_state.db_s[st.session_state.db_s["ID"] == s_sel.split(" - ")[0]]
             if not item_filtrado_s.empty:
                 it_s = item_filtrado_s.iloc[0]
-                v_tot_s = q_srv_solicitada * it_s["Valor (R$)"]
-                st.session_state.df_s_sel = pd.concat([st.session_state.df_s_sel, pd.DataFrame([{"ID": it_s["ID"], "Descrição": it_s["Descrição"], "Quantidade": q_srv_solicitada, "Valor Unitário (R$)": it_s["Valor (R$)"], "Valor Total (R$)": v_tot_s}])], ignore_index=True)
-                st.success("Mão de obra vinculada com sucesso!")
-                st.rerun()
+                st.session_state.df_s_sel = pd.concat([st.session_state.df_s_sel, pd.DataFrame([{"ID": it_s["ID"], "Descrição": it_s["Descrição"], "Quantidade": q_srv_solicitada, "Valor Unitário (R$)": it_s["Valor (R$)"], "Valor Total (R$)": q_srv_solicitada * it_s["Valor (R$)"]}])], ignore_index=True); st.rerun()
                 
     if not st.session_state.df_s_sel.empty:
         if st.checkbox("Excluir Serviço Vinculado"):
@@ -151,8 +193,7 @@ with a_orc:
             if st.button("❌ Confirmar Remoção Serviço"): st.session_state.df_s_sel = st.session_state.df_s_sel.drop(int(s_rem.split(" - ")[0])).reset_index(drop=True); st.rerun()
         df_se_edit = st.data_editor(st.session_state.df_s_sel, use_container_width=True)
         df_se_edit["Valor Total (R$)"] = df_se_edit["Quantidade"] * df_se_edit["Valor Unitário (R$)"]
-        st.session_state.df_s_sel = df_se_edit
-        t_mo = st.session_state.df_s_sel["Valor Total (R$)"].sum()
+        st.session_state.df_s_sel = df_se_edit; t_mo = df_se_edit["Valor Total (R$)"].sum()
     else: t_mo = 0.0
 
     st.write("---"); st.subheader("📦 Materiais")
@@ -160,21 +201,17 @@ with a_orc:
     if lista_m:
         m_sel = st.selectbox("Vincular Material à Proposta:", lista_m); q_sol = st.number_input("Quantidade Requerida:", min_value=1, value=1)
         if st.button("➕ Vincular Material"):
-            id_limpo_m = m_sel.split(" - ")[0]
-            item_filtrado_m = st.session_state.db_m[st.session_state.db_m["ID"] == id_limpo_m]
+            item_filtrado_m = st.session_state.db_m[st.session_state.db_m["ID"] == m_sel.split(" - ")[0]]
             if not item_filtrado_m.empty:
                 it_m = item_filtrado_m.iloc[0]
-                st.session_state.df_m_sel = pd.concat([st.session_state.df_m_sel, pd.DataFrame([{"ID": it_m["ID"], "Descrição": it_m["Descrição"], "Unidade": it_m["Unidade"], "Quantidade": q_sol, "Valor Unitário (R$)": it_m["Valor Unitário (R$)"], "Valor Total (R$)": q_sol*it_m["Valor Unitário (R$)"]}])], ignore_index=True)
-                st.success("Material vinculado com sucesso!")
-                st.rerun()
+                st.session_state.df_m_sel = pd.concat([st.session_state.df_m_sel, pd.DataFrame([{"ID": it_m["ID"], "Descrição": it_m["Descrição"], "Unidade": it_m["Unidade"], "Quantidade": q_sol, "Valor Unitário (R$)": it_m["Valor Unitário (R$)"], "Valor Total (R$)": q_sol*it_m["Valor Unitário (R$)"]}])], ignore_index=True); st.rerun()
     if not st.session_state.df_m_sel.empty:
         if st.checkbox("Excluir Material Vinculado"):
             m_rem = st.selectbox("Remover produto da proposta:", [f"{idx} - {r['Descrição']}" for idx, r in st.session_state.df_m_sel.iterrows()])
             if st.button("❌ Confirmar Remoção Material"): st.session_state.df_m_sel = st.session_state.df_m_sel.drop(int(m_rem.split(" - ")[0])).reset_index(drop=True); st.rerun()
         df_me_edit = st.data_editor(st.session_state.df_m_sel, use_container_width=True)
         df_me_edit["Valor Total (R$)"] = df_me_edit["Quantidade"] * df_me_edit["Valor Unitário (R$)"]
-        st.session_state.df_m_sel = df_me_edit
-        t_mat = st.session_state.df_m_sel["Valor Total (R$)"].sum()
+        st.session_state.df_m_sel = df_me_edit; t_mat = df_me_edit["Valor Total (R$)"].sum()
     else: t_mat = 0.0
 
     st.write("---"); st.subheader("🎁 Bônus")
@@ -186,8 +223,7 @@ with a_orc:
         if st.checkbox("Excluir Bônus Vinculado"):
             b_rem = st.selectbox("Remover bônus da proposta:", [f"{idx} - {r['Descrição']}" for idx, r in st.session_state.df_b_sel.iterrows()])
             if st.button("❌ Confirmar Remoção Bônus"): st.session_state.df_b_sel = st.session_state.df_b_sel.drop(int(b_rem.split(" - ")[0])).reset_index(drop=True); st.rerun()
-        st.session_state.df_b_sel = st.data_editor(st.session_state.df_b_sel, use_container_width=True)
-        t_bon = st.session_state.df_b_sel["Valor (R$)"].sum()
+        st.session_state.df_b_sel = st.data_editor(st.session_state.df_b_sel, use_container_width=True); t_bon = st.session_state.df_b_sel["Valor (R$)"].sum()
     else: t_bon = 0.0
 
     st.write("---"); st.subheader("📈 Total Bônus / Subtotal / Desconto")
@@ -208,65 +244,51 @@ with a_orc:
             try: pi = Image.open(lf); logo_p = pi.copy(); logo_p.thumbnail((90, 40)); lb = BytesIO(); logo_p.save(lb, format="PNG"); lb.seek(0); l_bx = RLImage(lb, width=logo_p.width, height=logo_p.height)
             except: pass
             
-        # RESOLVIDO: Passada a tupla exata de medidas em pontos para as três colunas [QR Code, Texto, Logo]
         t_hdr = Table([[RLImage(BytesIO(qb.getvalue()), width=45, height=45), Paragraph(tx_emp, ParagraphStyle('C', parent=s['Normal'], fontSize=8, leading=11, alignment=1)), l_bx]], colWidths=(60, 350, 110))
         t_hdr.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE')])); sty.append(t_hdr); sty.append(Spacer(1, 10))
-        sty.append(Paragraph(f"<b>Descrição Técnica do Serviço:</b> {ds_serv}", b_sty)); sty.append(Spacer(1, 4))
-        sty.append(Paragraph(f"<b>Validade:</b> {val_d} dias | <b>Emissão:</b> {dt_e.strftime('%d/%m/%Y')} | <b>Válido Até:</b> {dt_v.strftime('%d/%m/%Y')}", b_sty)); sty.append(Spacer(1, 8))
+        
+        sty.append(Paragraph(f"<b>Descrição Técnica do Serviço:</b> {ds_serv}", b_sty))
+        sty.append(Paragraph(f"<b>Validade:</b> {val_d} dias | <b>Emissão:</b> {dt_e.strftime('%d/%m/%Y')} | <b>Válido Até:</b> {dt_v.strftime('%d/%m/%Y')}", b_sty))
+        sty.append(Spacer(1, 5))
+        
+        # INCLUSÃO SOLICITADA: Dados detalhados do cliente no cabeçalho do PDF
+        sty.append(Paragraph(f"<b>Cliente / Empresa:</b> {nc} | <b>CPF / CNPJ:</b> {cnpj_c}", b_sty))
+        sty.append(Paragraph(f"<b>Endereço Técnico da Obra:</b> {end_c}", b_sty))
+        sty.append(Spacer(1, 8))
         
         sty.append(Paragraph("<b>Mão de Obra</b>", t_sty))
         d_mo = [["ID", "Descrição Mão de Obra", "Qtd", "Val Un", "Val Tot"]]
         for _, r in st.session_state.df_s_sel.iterrows(): d_mo.append([r["ID"], r["Descrição"], str(int(r["Quantidade"])), f"R$ {r['Valor Unitário (R$)']:.2f}", f"R$ {r['Valor Total (R$)']:.2f}"])
-        # RESOLVIDO: Medidas explícitas passadas para as 5 colunas da Mão de Obra
         t1 = Table(d_mo, colWidths=(60, 240, 40, 80, 100)); t1.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1A365D')), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')), ('PADDING', (0,0), (-1,-1), 4)])); sty.append(t1); sty.append(Spacer(1, 10))
         
         sty.append(Paragraph("<b>Materiais</b>", t_sty))
         d_ma = [["ID", "Descrição", "Un", "Qtd", "Val Un", "Val Tot"]]
         for _, r in st.session_state.df_m_sel.iterrows(): d_ma.append([r["ID"], r["Descrição"], r["Unidade"], str(int(r["Quantidade"])), f"R$ {r['Valor Unitário (R$)']:.2f}", f"R$ {r['Valor Total (R$)']:.2f}"])
-        # RESOLVIDO: Medidas explícitas passadas para as 6 colunas dos Materiais
         t2 = Table(d_ma, colWidths=(60, 210, 30, 40, 80, 100)); t2.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2B6CB0')), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')), ('PADDING', (0,0), (-1,-1), 4)])); sty.append(t2); sty.append(Spacer(1, 10))
         
         if t_bon > 0:
             sty.append(Paragraph("<b>Bônus</b>", t_sty))
             d_bo = [["ID", "Descrição", "Valor"]]
             for _, r in st.session_state.df_b_sel.iterrows(): d_bo.append([r["ID"], r["Descrição"], f"R$ {r['Valor (R$)']:.2f}"])
-            # RESOLVIDO: Medidas explícitas passadas para as 3 colunas dos Bônus
             t3 = Table(d_bo, colWidths=(70, 350, 100)); t3.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#4A5568')), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')), ('PADDING', (0,0), (-1,-1), 4)])); sty.append(t3); sty.append(Spacer(1, 10))
         
         d_ch = [["Total Bônus", f"R$ {t_bon:.2f}"], ["Subtotal", f"R$ {sub_bruto:.2f}"], [f"Desconto ({ds_s}%)", f"R$ {v_desc:.2f}"], ["TOTAL A PAGAR (ATÉ 10X CARTÃO)", f"R$ {tot_cartao:.2f}"], ["TOTAL À VISTA (DINHEIRO OU PIX)", f"R$ {tot_vista:.2f}"]]
-        # RESOLVIDO: Medidas explícitas passadas para as 2 colunas do Resumo Financeiro
         t4 = Table(d_ch, colWidths=(350, 170)); t4.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')), ('FONTNAME', (0,-2), (1,-1), 'Helvetica-Bold'), ('BACKGROUND', (0,-2), (0,-2), colors.HexColor('#FED7D7')), ('BACKGROUND', (0,-1), (1,-1), colors.HexColor('#C6F6D5')), ('PADDING', (0,0), (-1,-1), 4)])); sty.append(t4)
         
         sty.append(Spacer(1, 10)); sty.append(Paragraph("<b>Garantia</b>", t_sty))
-        t_garantia = (
-            "O presente documento concede ao proprietário garantia condicional de 06 meses sobre os serviços de instalação realizados e registrados neste documento sob as seguintes condições:<br/>"
-            "1- Durante este período o proprietário não poderá realizar demais intervenções nas instalações realizadas utilizando outra mão de obra de eletricistas terceiros, caso precise de algum reparo, acionar nossa empresa para tal.<br/>"
-            "2- O painel elétrico será lacrado e não poderá ser rompido o lacre sem que seja formalizado junto à nossa empresa.<br/><br/>"
-            "O presente documento concede ao proprietário garantia condicional de 06 meses sobre os materiais de instalação realizados e registrados neste documento sob as seguintes condições:<br/>"
-            "1- Os equipamentos instalados nas tomadas devem ser compatíveis em valores de corrente elétrica com as especificações das tomadas.<br/>"
-            "2- Não serão considerados os danos provenientes da utilização de conectores de tomada tipo \"T\", Benjamim, Extensões e outros dispositivos não certificados pelo INMETRO que possam causar sobrecarga na mesma."
-        )
+        t_garantia = "O presente documento concede ao proprietário garantia condicional de 06 meses sobre os serviços de instalação realizados e registrados neste documento sob as seguintes condições:<br/>1- Durante este período o proprietário não poderá realizar demais intervenções nas instalações realizadas utilizando outra mão de obra de eletricistas terceiros, caso precise de algum reparo, acionar nossa empresa para tal.<br/>2- O painel elétrico será lacrado e não poderá ser rompido o lacre sem que seja formalizado junto à nossa empresa.<br/><br/>O presente documento concede ao proprietário garantia condicional de 06 meses sobre os materiais de instalação realizados e registrados neste documento sob as seguintes condições:<br/>1- Os equipamentos instalados nas tomadas devem ser compatíveis em valores de corrente elétrica com as especificações das tomadas.<br/>2- Não serão considerados os danos provenientes da utilização de conectores de tomada tipo \"T\", Benjamim, Extensões e outros dispositivos não certificados pelo INMETRO que possam causar sobrecarga na mesma."
         sty.append(Paragraph(t_garantia, b_sty))
         
         sty.append(Spacer(1, 5)); sty.append(Paragraph("<b>OBSERVAÇÕES</b>", t_sty))
-        t_obs = (
-            "1- Caso seja necessário a execução de demais atividades não listadas neste orçamento, será criado outro orçamento para estes serviços.<br/>"
-            "2- Caso, durante a execução das atividades, seja necessário a compra de materiais não contemplados nesta lista, por solicitação do cliente ou por terem sido subestimados, os valores destes materiais extras serão passados ao cliente junto das justificativas e este valor deverá ser cobrado à parte."
-        )
+        t_obs = "1- Caso seja necessário a execução de demais atividades não listadas neste orçamento, será criado outro orçamento para estes serviços.<br/>2- Caso, durante a execução das atividades, seja necessário a compra de materiais não contemplados nesta lista, por solicitação do cliente ou por terem sido subestimados, os valores destes materiais extras serão passados ao cliente junto das justificativas e este valor deverá ser cobrado à parte."
         sty.append(Paragraph(t_obs, b_sty))
         
         sty.append(Spacer(1, 5)); sty.append(Paragraph("<b>PAGAMENTO</b>", t_sty))
-        t_pag = (
-            "1- Será considerado à vista pagamento em dinheiro ou PIX, sendo realizado 50% do valor total no ato do fechamento do serviço e 50% do valor total na entrega técnica ao finalizar as atividades descritas no escopo deste orçamento.<br/>"
-            "2- Para pagamento à vista, será concedido um desconto para o cliente, conforme indicado na proposta comercial.<br/>"
-            "3- O valor total poderá ser parcelado em até 10 vezes no cartão de crédito.<br/>"
-            "4- Aceitamos cartões VISA e Master Card."
-        )
+        t_pag = "1- Será considerado à vista pagamento em dinheiro ou PIX, sendo realizado 50% do valor total no ato do fechamento do serviço e 50% do valor total na entrega técnica ao finalizar as atividades descritas no escopo deste orçamento.<br/>2- Para pagamento à vista, será concedido um desconto para o cliente, conforme indicado na proposta comercial.<br/>3- O valor total poderá ser parcelado em até 10 vezes no cartão de crédito.<br/>4- Aceitamos cartões VISA e Master Card."
         sty.append(Paragraph(t_pag, b_sty))
         
         now_t = dt.datetime.now().strftime('%d/%m/%Y %H:%M')
         msg = f"<b>Assinado digitalmente por:</b> RONILSON RICHARDSON FRAGOSO DE SOUZA<br/><b>Data da Chancelagem:</b> {now_t} | <b>Padrão:</b> ICP-Brasil Equivalente V2<br/><b>Chave Identificadora de Autenticidade (MD5):</b> {h_val}"
-        # RESOLVIDO: Medidas explícitas passadas para as 2 colunas da estampa GOV
         tgv = Table([[RLImage(BytesIO(qb.getvalue()), width=55, height=55), Paragraph(msg, ParagraphStyle('G', parent=s['Normal'], fontSize=7.5, leading=10))]], colWidths=(65, 455))
         tgv.setStyle(TableStyle([('BOX', (0,0), (-1,-1), 1, colors.HexColor('#A0AEC0')), ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F7FAFC')), ('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('PADDING', (0,0), (-1,-1), 6)]))
         sty.append(Spacer(1, 15)); sty.append(tgv)
