@@ -7,7 +7,7 @@ st.set_page_config(page_title="Construção Pro - Engenharia de Custos", page_ic
 # Inicialização dos bancos de dados internos em memória se não existirem
 if "db_veiculos" not in st.session_state:
     st.session_state.db_veiculos = pd.DataFrame([
-        {"Marca": "Fiat", "Modelo": "Uno", "Tempo de Uso (Anos)": 2, "Consumo (Km/L)": 12.0, "Valor FIPE (R$)": 35000.0, "Seguro/Doc Anual (R$)": 1500.0, "Manutenção Mensal (R$)": 200.0}
+        {"Tipo": "Carro", "Marca": "Fiat", "Modelo": "Uno", "Tempo de Uso (Anos)": 2, "Consumo (Km/L)": 12.0, "Valor FIPE (R$)": 35000.0, "Seguro/Doc Anual (R$)": 1500.0, "Manutenção Mensal (R$)": 200.0}
     ])
 
 if "db_custos_fixos" not in st.session_state:
@@ -54,19 +54,21 @@ with aba_calcular_hora:
     with st.form("cad_veiculo_form", clear_on_submit=True):
         col_v1, col_v2 = st.columns(2)
         with col_v1:
+            v_tipo = st.selectbox("Tipo do Veículo:", ["Carro", "Moto", "Caminhão", "Utilitário / Van"])
             v_marca = st.text_input("Marca do Veículo:")
             v_modelo = st.text_input("Modelo do Veículo:")
+        with col_v2:
             v_tempo = st.number_input("Tempo que tenho o veículo (Anos):", min_value=0, value=1)
             v_consumo = st.number_input("Consumo Médio de Combustível (Km/L):", min_value=1.0, value=10.0, step=0.5)
-        with col_v2:
             v_fipe = st.number_input("Valor Atual de Mercado (Tabela FIPE - R$):", min_value=0.0, value=30000.0, step=1000.0)
-            v_seg_doc = st.number_input("Seguro + Documentação Anual total (R$):", min_value=0.0, value=1200.0, step=100.0)
-            v_manutencao = st.number_input("Gasto de Manutenção Mensal estimado (R$):", min_value=0.0, value=200.0, step=50.0)
+            
+        v_seg_doc = st.number_input("Seguro + Documentação Anual total (R$):", min_value=0.0, value=1200.0, step=100.0)
+        v_manutencao = st.number_input("Gasto de Manutenção Mensal estimado (R$):", min_value=0.0, value=200.0, step=50.0)
             
         if st.form_submit_button("💾 Salvar Veículo na Frota"):
             if v_marca and v_modelo:
                 novo_v = pd.DataFrame([{
-                    "Marca": v_marca, "Modelo": v_modelo, "Tempo de Uso (Anos)": v_tempo,
+                    "Tipo": v_tipo, "Marca": v_marca, "Modelo": v_modelo, "Tempo de Uso (Anos)": v_tempo,
                     "Consumo (Km/L)": v_consumo, "Valor FIPE (R$)": v_fipe, 
                     "Seguro/Doc Anual (R$)": v_seg_doc, "Manutenção Mensal (R$)": v_manutencao
                 }])
@@ -75,9 +77,8 @@ with aba_calcular_hora:
                 st.rerun()
     # Renderização da Planilha Dinâmica do Veículo e Remoção
     if not st.session_state.db_veiculos.empty:
-        # Área de Exclusão de Veículos
         with st.expander("🗑️ Excluir Veículo Cadastrado"):
-            lista_veiculos = [f"{idx} - {r['Marca']} {r['Modelo']}" for idx, r in st.session_state.db_veiculos.iterrows()]
+            lista_veiculos = [f"{idx} - [{r['Tipo']}] {r['Marca']} {r['Modelo']}" for idx, r in st.session_state.db_veiculos.iterrows()]
             veiculo_para_remover = st.selectbox("Selecione o veículo para deletar:", lista_veiculos)
             if st.button("❌ Confirmar Exclusão do Veículo", type="primary"):
                 idx_remover = int(veiculo_para_remover.split(" - ")[0])
@@ -119,9 +120,7 @@ with aba_calcular_hora:
                 st.success("Custo fixo adicionado!")
                 st.rerun()
 
-    # Cálculo em tempo real do custo por hora para cada linha cadastrada e Remoção
     if not st.session_state.db_custos_fixos.empty:
-        # Área de Exclusão de Custos Fixos
         with st.expander("🗑️ Excluir Despesa / Gasto Fixo"):
             lista_gastos = [f"{idx} - {r['Tipo de Gasto']}" for idx, r in st.session_state.db_custos_fixos.iterrows()]
             gasto_para_remover = st.selectbox("Selecione a despesa para deletar:", lista_gastos)
