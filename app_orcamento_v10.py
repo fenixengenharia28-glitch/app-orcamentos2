@@ -42,8 +42,8 @@ if "df_s_sel" not in st.session_state:
 if "df_b_sel" not in st.session_state:
     st.session_state.df_b_sel = pd.DataFrame(columns=["ID", "Descrição", "Valor (R$)"])
 
-st.title("🏗️ Sistema Fênix Engenharia")
-st.caption("Versão v11.4 - Ajuste de colWidths Fixos e Divisão em 5 Blocos Curtos")
+st.title("🏗️ Propostas - Fênix Engenharia")
+st.caption("Versão v11.5 - Correção na Busca de Valores de Materiais/Serviços e WhatsApp Fixo")
 a_orc, a_calc, a_mat, a_serv = st.tabs(["📋 Proposta Comercial", "🧮 Calcular Minha Hora", "📦 Materiais", "🛠️ Serviços"])
 with a_calc:
     st.header("🧮 Preço da Hora Técnica")
@@ -71,7 +71,7 @@ with a_calc:
         if st.checkbox("Excluir Veículo"):
             vr = st.selectbox("Remover veículo:", [f"{idx} - {r['Modelo']}" for idx, r in st.session_state.db_v.iterrows()])
             if st.button("Confirmar Exclusão V"):
-                st.session_state.db_v = st.session_state.db_v.drop(int(vr.split(" - "))).reset_index(drop=True); st.rerun()
+                st.session_state.db_v = st.session_state.db_v.drop(int(vr.split(" - ")[0])).reset_index(drop=True); st.rerun()
         st.session_state.db_v = st.data_editor(st.session_state.db_v, use_container_width=True)
         cm = ((st.session_state.db_v["Valor FIPE (R$)"].sum() * 0.10 / 12) + (st.session_state.db_v["IPVA Anual"].sum() / 12) + st.session_state.db_v["Manutenção Mensal"].sum()) / ht if ht > 0 else 0.0
     else: cm = 0.0
@@ -85,7 +85,7 @@ with a_calc:
         if st.checkbox("Excluir Despesa"):
             gr = st.selectbox("Remover gasto:", [f"{idx} - {r['Tipo de Gasto']}" for idx, r in st.session_state.db_c.iterrows()])
             if st.button("Confirmar Exclusão D"):
-                st.session_state.db_c = st.session_state.db_c.drop(int(gr.split(" - "))).reset_index(drop=True); st.rerun()
+                st.session_state.db_c = st.session_state.db_c.drop(int(gr.split(" - ")[0])).reset_index(drop=True); st.rerun()
         df_f = st.session_state.db_c.copy(); df_f["Valor por Hora (R$)"] = (df_f["Valor Mensal (R$)"] / ht).round(2) if ht > 0 else 0.0
         st.session_state.db_c = st.data_editor(df_f, use_container_width=True)[["Tipo de Gasto", "Valor Mensal (R$)"]]
         cf_h = st.session_state.db_c["Valor Mensal (R$)"].sum() / ht if ht > 0 else 0.0
@@ -107,7 +107,7 @@ with a_mat:
     if not st.session_state.db_m.empty:
         if st.checkbox("Remover Material"):
             mr = st.selectbox("Deletar item do catálogo:", [f"{r['ID']} - {r['Descrição']}" for idx, r in st.session_state.db_m.iterrows()])
-            st.session_state.db_m = st.session_state.db_m[st.session_state.db_m["ID"] != mr.split(" - ")].reset_index(drop=True); st.rerun()
+            st.session_state.db_m = st.session_state.db_m[st.session_state.db_m["ID"] != mr.split(" - ")[0]].reset_index(drop=True); st.rerun()
         df_me = st.data_editor(st.session_state.db_m, use_container_width=True)
         df_me["Valor Unitário (R$)"] = (df_me["Custo (R$)"] / (1 - (df_me["Margem (%)"].clip(0,99)/100))).round(2); st.session_state.db_m = df_me
 
@@ -120,12 +120,14 @@ with a_serv:
     if not st.session_state.db_s.empty:
         if st.checkbox("Remover Serviço"):
             sr = st.selectbox("Deletar serviço do catálogo:", [f"{r['ID']} - {r['Descrição']}" for idx, r in st.session_state.db_s.iterrows()])
-            st.session_state.db_s = st.session_state.db_s[st.session_state.db_s["ID"] != sr.split(" - ")].reset_index(drop=True); st.rerun()
+            st.session_state.db_s = st.session_state.db_s[st.session_state.db_s["ID"] != sr.split(" - ")[0]].reset_index(drop=True); st.rerun()
         st.session_state.db_s = st.data_editor(st.session_state.db_s, use_container_width=True)
 with a_orc:
     st.subheader("📋 Configuração da Proposta Comercial - Fênix Engenharia")
     logo_upload = st.file_uploader("Upload da Logomarca (Direita do PDF):", type=["png", "jpg", "jpeg"])
-    wpp_num = st.text_input("WhatsApp para QR Code (Apenas Números com DDD):", value="31999999999")
+    
+    # Atualizado com o seu número real fixado por padrão
+    wpp_num = st.text_input("WhatsApp para QR Code (Apenas Números com DDD):", value="31995392027")
     nc = st.text_input("Nome do Cliente:", value="Fenix Engenharia e Comercio LTDA")
     ds_serv = st.text_area("Descrição Geral do Serviço Executado:", value="Execução de Infraestrutura e Reforma Técnica.")
     c1, c2, c3 = st.columns(3); val_d = c1.number_input("Validade (Dias):", min_value=1, value=10); dt_e = c2.date_input("Emissão:", value=dt.date.today()); dt_v = c3.date_input("Válido Até:", value=dt.date.today()+dt.timedelta(days=int(val_d)))
@@ -135,12 +137,15 @@ with a_orc:
     if lista_s:
         s_sel = st.selectbox("Vincular Serviço à Proposta:", lista_s)
         if st.button("➕ Vincular Serviço"):
-            it_s = st.session_state.db_s[st.session_state.db_s["ID"] == s_sel.split(" - ")].iloc
+            # CORREÇÃO: Busca usando split para extrair apenas o ID limpo
+            id_limpo_s = s_sel.split(" - ")[0]
+            it_s = st.session_state.db_s[st.session_state.db_s["ID"] == id_limpo_s].iloc[0]
             st.session_state.df_s_sel = pd.concat([st.session_state.df_s_sel, pd.DataFrame([{"ID": it_s["ID"], "Descrição": it_s["Descrição"], "Valor (R$)": it_s["Valor (R$)"]}])], ignore_index=True)
+            st.rerun()
     if not st.session_state.df_s_sel.empty:
         if st.checkbox("Excluir Serviço Vinculado"):
             s_rem = st.selectbox("Remover serviço da proposta:", [f"{idx} - {r['Descrição']}" for idx, r in st.session_state.df_s_sel.iterrows()])
-            if st.button("❌ Confirmar Remoção Serviço"): st.session_state.df_s_sel = st.session_state.df_s_sel.drop(int(s_rem.split(" - "))).reset_index(drop=True); st.rerun()
+            if st.button("❌ Confirmar Remoção Serviço"): st.session_state.df_s_sel = st.session_state.df_s_sel.drop(int(s_rem.split(" - ")[0])).reset_index(drop=True); st.rerun()
         st.session_state.df_s_sel = st.data_editor(st.session_state.df_s_sel, use_container_width=True)
         t_mo = st.session_state.df_s_sel["Valor (R$)"].sum()
     else: t_mo = 0.0
@@ -150,12 +155,15 @@ with a_orc:
     if lista_m:
         m_sel = st.selectbox("Vincular Material à Proposta:", lista_m); q_sol = st.number_input("Quantidade Requerida:", min_value=1, value=1)
         if st.button("➕ Vincular Material"):
-            it_m = st.session_state.db_m[st.session_state.db_m["ID"] == m_sel.split(" - ")].iloc
+            # CORREÇÃO: Busca usando split para extrair apenas o ID limpo
+            id_limpo_m = m_sel.split(" - ")[0]
+            it_m = st.session_state.db_m[st.session_state.db_m["ID"] == id_limpo_m].iloc[0]
             st.session_state.df_m_sel = pd.concat([st.session_state.df_m_sel, pd.DataFrame([{"ID": it_m["ID"], "Descrição": it_m["Descrição"], "Unidade": it_m["Unidade"], "Quantidade": q_sol, "Valor Unitário (R$)": it_m["Valor Unitário (R$)"], "Valor Total (R$)": q_sol*it_m["Valor Unitário (R$)"]}])], ignore_index=True)
+            st.rerun()
     if not st.session_state.df_m_sel.empty:
         if st.checkbox("Excluir Material Vinculado"):
             m_rem = st.selectbox("Remover produto da proposta:", [f"{idx} - {r['Descrição']}" for idx, r in st.session_state.df_m_sel.iterrows()])
-            if st.button("❌ Confirmar Remoção Material"): st.session_state.df_m_sel = st.session_state.df_m_sel.drop(int(m_rem.split(" - "))).reset_index(drop=True); st.rerun()
+            if st.button("❌ Confirmar Remoção Material"): st.session_state.df_m_sel = st.session_state.df_m_sel.drop(int(m_rem.split(" - ")[0])).reset_index(drop=True); st.rerun()
         df_me_edit = st.data_editor(st.session_state.df_m_sel, use_container_width=True)
         df_me_edit["Valor Total (R$)"] = df_me_edit["Quantidade"] * df_me_edit["Valor Unitário (R$)"]
         st.session_state.df_m_sel = df_me_edit
@@ -170,7 +178,7 @@ with a_orc:
     if not st.session_state.df_b_sel.empty:
         if st.checkbox("Excluir Bônus Vinculado"):
             b_rem = st.selectbox("Remover bônus da proposta:", [f"{idx} - {r['Descrição']}" for idx, r in st.session_state.df_b_sel.iterrows()])
-            if st.button("❌ Confirmar Remoção Bônus"): st.session_state.df_b_sel = st.session_state.df_b_sel.drop(int(b_rem.split(" - "))).reset_index(drop=True); st.rerun()
+            if st.button("❌ Confirmar Remoção Bônus"): st.session_state.df_b_sel = st.session_state.df_b_sel.drop(int(b_rem.split(" - ")[0])).reset_index(drop=True); st.rerun()
         st.session_state.df_b_sel = st.data_editor(st.session_state.df_b_sel, use_container_width=True)
         t_bon = st.session_state.df_b_sel["Valor (R$)"].sum()
     else: t_bon = 0.0
@@ -193,7 +201,7 @@ with a_orc:
             try: pi = Image.open(lf); logo_p = pi.copy(); logo_p.thumbnail((90, 40)); lb = BytesIO(); logo_p.save(lb, format="PNG"); lb.seek(0); l_bx = RLImage(lb, width=logo_p.width, height=logo_p.height)
             except: pass
             
-        t_hdr = Table([[RLImage(BytesIO(qb.getvalue()), width=45, height=45), Paragraph(tx_emp, ParagraphStyle('C', parent=s['Normal'], fontSize=8, leading=11, alignment=1)), l_bx]], colWidths=[60, 350, 100])
+        t_hdr = Table([[RLImage(BytesIO(qb.getvalue()), width=45, height=45), Paragraph(tx_emp, ParagraphStyle('C', parent=s['Normal'], fontSize=8, leading=11, alignment=1)), l_bx]], colWidths=[60, 340, 120])
         t_hdr.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'MIDDLE')])); sty.append(t_hdr); sty.append(Spacer(1, 10))
         sty.append(Paragraph(f"<b>Descrição Técnica do Serviço:</b> {ds_serv}", b_sty)); sty.append(Spacer(1, 4))
         sty.append(Paragraph(f"<b>Validade:</b> {val_d} dias | <b>Emissão:</b> {dt_e.strftime('%d/%m/%Y')} | <b>Válido Até:</b> {dt_v.strftime('%d/%m/%Y')}", b_sty)); sty.append(Spacer(1, 8))
@@ -201,25 +209,25 @@ with a_orc:
         sty.append(Paragraph("<b>Mão de Obra</b>", t_sty))
         d_mo = [["ID", "Descrição Mão de Obra", "Valor"]]
         for _, r in st.session_state.df_s_sel.iterrows(): d_mo.append([r["ID"], r["Descrição"], f"R$ {r['Valor (R$)']:.2f}"])
-        t1 = Table(d_mo, colWidths=[70, 320, 120]); t1.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1A365D')), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')), ('PADDING', (0,0), (-1,-1), 4)])); sty.append(t1); sty.append(Spacer(1, 10))
+        t1 = Table(d_mo, colWidths=[80, 320, 120]); t1.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1A365D')), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')), ('PADDING', (0,0), (-1,-1), 4)])); sty.append(t1); sty.append(Spacer(1, 10))
         
         sty.append(Paragraph("<b>Materiais</b>", t_sty))
         d_ma = [["ID", "Descrição", "Un", "Qtd", "Val Un", "Val Tot"]]
         for _, r in st.session_state.df_m_sel.iterrows(): d_ma.append([r["ID"], r["Descrição"], r["Unidade"], str(int(r["Quantidade"])), f"R$ {r['Valor Unitário (R$)']:.2f}", f"R$ {r['Valor Total (R$)']:.2f}"])
-        t2 = Table(d_ma, colWidths=[60, 210, 40, 40, 80, 80]); t2.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2B6CB0')), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')), ('PADDING', (0,0), (-1,-1), 4)])); sty.append(t2); sty.append(Spacer(1, 10))
+        t2 = Table(d_ma, colWidths=[60, 220, 40, 50, 70, 80]); t2.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2B6CB0')), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')), ('PADDING', (0,0), (-1,-1), 4)])); sty.append(t2); sty.append(Spacer(1, 10))
         
         if t_bon > 0:
             sty.append(Paragraph("<b>Bônus</b>", t_sty))
             d_bo = [["ID", "Descrição", "Valor"]]
             for _, r in st.session_state.df_b_sel.iterrows(): d_bo.append([r["ID"], r["Descrição"], f"R$ {r['Valor (R$)']:.2f}"])
-            t3 = Table(d_bo, colWidths=[70, 320, 120]); t3.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#4A5568')), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')), ('PADDING', (0,0), (-1,-1), 4)])); sty.append(t3); sty.append(Spacer(1, 10))
+            t3 = Table(d_bo, colWidths=[80, 320, 120]); t3.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.HexColor('#4A5568')), ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke), ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')), ('PADDING', (0,0), (-1,-1), 4)])); sty.append(t3); sty.append(Spacer(1, 10))
         
         d_ch = [["Total Bônus", f"R$ {t_bon:.2f}"], ["Subtotal", f"R$ {sub_bruto:.2f}"], [f"Desconto ({ds_s}%)", f"R$ {v_desc:.2f}"], ["TOTAL A PAGAR (ATÉ 10X CARTÃO)", f"R$ {tot_cartao:.2f}"], ["TOTAL À VISTA (DINHEIRO OU PIX)", f"R$ {tot_vista:.2f}"]]
-        t4 = Table(d_ch, colWidths=[350, 160]); t4.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')), ('FONTNAME', (0,-2), (1,-1), 'Helvetica-Bold'), ('BACKGROUND', (0,-2), (0,-2), colors.HexColor('#FED7D7')), ('BACKGROUND', (0,-1), (1,-1), colors.HexColor('#C6F6D5')), ('PADDING', (0,0), (-1,-1), 4)])); sty.append(t4)
+        t4 = Table(d_ch, colWidths=[360, 160]); t4.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E0')), ('FONTNAME', (0,-2), (1,-1), 'Helvetica-Bold'), ('BACKGROUND', (0,-2), (0,-2), colors.HexColor('#FED7D7')), ('BACKGROUND', (0,-1), (1,-1), colors.HexColor('#C6F6D5')), ('PADDING', (0,0), (-1,-1), 4)])); sty.append(t4)
         
         now_t = dt.datetime.now().strftime('%d/%m/%Y %H:%M')
         msg = f"<b>Assinado digitalmente por:</b> FÊNIX ENGENHARIA<br/><b>Data da Chancelagem:</b> {now_t} | <b>Padrão:</b> ICP-Brasil Equivalente V2<br/><b>Chave Identificadora de Autenticidade (MD5):</b> {h_val}"
-        tgv = Table([[RLImage(BytesIO(qb.getvalue()), width=55, height=55), Paragraph(msg, ParagraphStyle('G', parent=s['Normal'], fontSize=7.5, leading=10))]], colWidths=[65, 445])
+        tgv = Table([[RLImage(BytesIO(qb.getvalue()), width=55, height=55), Paragraph(msg, ParagraphStyle('G', parent=s['Normal'], fontSize=7.5, leading=10))]], colWidths=[70, 450])
         tgv.setStyle(TableStyle([('BOX', (0,0), (-1,-1), 1, colors.HexColor('#A0AEC0')), ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F7FAFC')), ('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('PADDING', (0,0), (-1,-1), 6)]))
         sty.append(Spacer(1, 15)); sty.append(tgv)
         
