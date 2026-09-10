@@ -12,7 +12,6 @@ from PIL import Image
 
 st.set_page_config(page_title="Fênix Engenharia", page_icon="🏗️", layout="centered")
 
-# Inicialização dos bancos de dados internos em memória
 if "db_v" not in st.session_state:
     st.session_state.db_v = pd.DataFrame([
         {"Tipo": "Carro", "Marca": "Fiat", "Modelo": "Uno", "Tempo de Uso (Anos)": 2, "Consumo (Km/L)": 12.0, "Valor FIPE (R$)": 35000.0, "IPVA Anual": 1400.0, "Manutenção Mensal": 200.0}
@@ -34,9 +33,10 @@ if "db_s" not in st.session_state:
         {"ID": "SRV-001", "Descrição": "Instalação de Tomada", "Unidade": "Ponto", "Valor (R$)": 50.00}
     ])
 
+# ATUALIZADO: Nome oficial da empresa fixado no cadastro padrão
 if "db_clientes" not in st.session_state:
     st.session_state.db_clientes = pd.DataFrame([
-        {"ID": "CLI-001", "Nome / Razão Social": "Fenix Engenharia e Comercio LTDA", "CPF / CNPJ": "52.769.953/0001-12", "Telefone": "(31) 99539-2027", "Endereço Completo": "Avenida Getulio Vargas, nº 671, Savassi, Belo Horizonte - MG"}
+        {"ID": "CLI-001", "Nome / Razão Social": "FENIX ENGENHARIA E COMERCIO LTDA", "CPF / CNPJ": "52.769.953/0001-12", "Telefone": "(31) 99539-2027", "Endereço Completo": "Avenida Getulio Vargas, nº 671, Savassi, Belo Horizonte - MG"}
     ])
 
 if "db_logos" not in st.session_state:
@@ -52,7 +52,7 @@ if "df_b_sel" not in st.session_state:
     st.session_state.df_b_sel = pd.DataFrame(columns=["ID", "Descrição", "Valor (R$)"])
 
 st.title("🏗️ Propostas - Fênix Engenharia")
-st.caption("Versão v14.1 - Correção do ValueError split[0] e Limpeza Absoluta do Cabeçalho")
+st.caption("Versão v14.2 - Ajuste de Nome Corporativo e Proteção Dinâmica de Busca por ID")
 a_orc, a_clientes, a_calc, a_mat, a_serv = st.tabs(["📋 Proposta Comercial", "👥 Cadastro de Clientes", "🧮 Calcular Minha Hora", "📦 Materiais", "🛠️ Serviços"])
 with a_clientes:
     st.header("👥 Central e Cadastro Geral de Clientes")
@@ -161,7 +161,7 @@ with a_serv:
             if st.button("Confirmar Remoção S"): st.session_state.db_s = st.session_state.db_s[st.session_state.db_s["ID"] != sr.split(" - ")[0]].reset_index(drop=True); st.rerun()
         st.session_state.db_s = st.data_editor(st.session_state.db_s, use_container_width=True)
 with a_orc:
-    st.subheader("📋 Configuração da Proposta Comercial - Fênix Engenharia")
+    st.subheader("📋 Configuração da Proposta Comercial - FÊNIX ENGENHARIA E COMERCIO LTDA")
     
     col_l1, col_l2 = st.columns(2)
     with col_l1:
@@ -182,25 +182,28 @@ with a_orc:
     c_selecionado = st.selectbox("Selecione o Cliente Cadastrado:", lista_clientes_ativos)
     
     if not st.session_state.db_clientes.empty and c_selecionado != "Nenhum cliente cadastrado":
-        # RESOLVIDO: Busca usando split[0] para capturar apenas o código exato (CLI-001) e .iloc[0] para limpar arrays do Pandas
-        id_limpo_c = c_selecionado.split(" - ")[0]
-        ficha_c = st.session_state.db_clientes[st.session_state.db_clientes["ID"] == id_limpo_c]
-        nc = str(ficha_c["Nome / Razão Social"].iloc[0])
-        cnpj_c = str(ficha_c["CPF / CNPJ"].iloc[0])
-        end_c = str(ficha_c["Endereço Completo"].iloc[0])
+        # CORREÇÃO DEFINITIVA: Extrai estritamente a posição [0] do split para bater com o ID isolado da tabela
+        id_real_c = c_selecionado.split(" - ")[0]
+        ficha_c = st.session_state.db_clientes[st.session_state.db_clientes["ID"] == id_real_c]
+        if not ficha_c.empty:
+            nc = str(ficha_c["Nome / Razão Social"].values[0])
+            cnpj_c = str(ficha_c["CPF / CNPJ"].values[0])
+            end_c = str(ficha_c["Endereço Completo"].values[0])
+        else: nc, cnpj_c, end_c = "Cliente Não Informado", "00.000.000/0001-00", "Endereço Não Informado"
     else:
         nc, cnpj_c, end_c = "Cliente Não Informado", "00.000.000/0001-00", "Endereço Não Informado"
         
     ds_serv = st.text_area("Descrição Geral do Serviço Executado:", value="Execução de Infraestrutura e Reforma Técnica.")
     c1, c2, c3 = st.columns(3); val_d = c1.number_input("Validade (Dias):", min_value=1, value=10); dt_e = c2.date_input("Emissão:", value=dt.date.today()); dt_v = c3.date_input("Válido Até:", value=dt.date.today()+dt.timedelta(days=int(val_d)))
     
-    st.write("---"); st.subheader(" Mão de Obra")
+    st.write("---"); st.subheader("👷 Mão de Obra")
     lista_s = [f"{r['ID']} - {r['Descrição']}" for idx, r in st.session_state.db_s.iterrows()] if not st.session_state.db_s.empty else []
     if lista_s:
         s_sel = st.selectbox("Vincular Serviço à Proposta:", lista_s)
         q_srv_solicitada = st.number_input("Quantidade do Serviço:", min_value=1, value=1)
         if st.button("➕ Vincular Serviço"):
-            item_filtrado_s = st.session_state.db_s[st.session_state.db_s["ID"] == s_sel.split(" - ")[0]]
+            id_limpo_s = s_sel.split(" - ")[0]
+            item_filtrado_s = st.session_state.db_s[st.session_state.db_s["ID"] == id_limpo_s]
             if not item_filtrado_s.empty:
                 it_s = item_filtrado_s.iloc[0]
                 st.session_state.df_s_sel = pd.concat([st.session_state.df_s_sel, pd.DataFrame([{"ID": it_s["ID"], "Descrição": it_s["Descrição"], "Quantidade": q_srv_solicitada, "Valor Unitário (R$)": it_s["Valor (R$)"], "Valor Total (R$)": q_srv_solicitada * it_s["Valor (R$)"]}])], ignore_index=True); st.rerun()
@@ -219,7 +222,8 @@ with a_orc:
     if lista_m:
         m_sel = st.selectbox("Vincular Material à Proposta:", lista_m); q_sol = st.number_input("Quantidade Requerida:", min_value=1, value=1)
         if st.button("➕ Vincular Material"):
-            item_filtrado_m = st.session_state.db_m[st.session_state.db_m["ID"] == m_sel.split(" - ")[0]]
+            id_limpo_m = m_sel.split(" - ")[0]
+            item_filtrado_m = st.session_state.db_m[st.session_state.db_m["ID"] == id_limpo_m]
             if not item_filtrado_m.empty:
                 it_m = item_filtrado_m.iloc[0]
                 st.session_state.df_m_sel = pd.concat([st.session_state.df_m_sel, pd.DataFrame([{"ID": it_m["ID"], "Descrição": it_m["Descrição"], "Unidade": it_m["Unidade"], "Quantidade": q_sol, "Valor Unitário (R$)": it_m["Valor Unitário (R$)"], "Valor Total (R$)": q_sol*it_m["Valor Unitário (R$)"]}])], ignore_index=True); st.rerun()
@@ -254,7 +258,9 @@ with a_orc:
         bf = BytesIO(); doc = SimpleDocTemplate(bf, pagesize=letter, rightMargin=35, leftMargin=45, topMargin=40, bottomMargin=40); sty = []; s = getSampleStyleSheet()
         t_sty = ParagraphStyle('T', parent=s['Heading1'], fontSize=12, textColor=colors.HexColor('#1A365D'), spaceBefore=10, spaceAfter=4)
         b_sty = ParagraphStyle('B', parent=s['Normal'], fontSize=9, leading=13, spaceAfter=4)
-        tx_emp = "<b>FÊNIX ENGENHARIA</b> - CNPJ: 52.769.953/0001-12<br/>Endereço: Avenida Getulio Vargas, nº 671, 9º Andar, Sala 1.051, Bairro Savassi, Belo Horizonte - MG, Cep: 30112-021"
+        
+        # ATUALIZADO: Nome definitivo inserido na estampa de texto do PDF
+        tx_emp = "<b>FENIX ENGENHARIA E COMERCIO LTDA</b> - CNPJ: 52.769.953/0001-12<br/>Endereço: Avenida Getulio Vargas, nº 671, 9º Andar, Sala 1.051, Bairro Savassi, Belo Horizonte - MG, Cep: 30112-021"
         l_bx = Paragraph("", b_sty)
         
         if logo_bytes is not None:
