@@ -66,8 +66,9 @@ class PDFOrcamento(FPDF):
         self.set_font("Helvetica", "I", 8)
         self.cell(0, 10, f"Página {self.page_no()}/{{nb}}", align="C", ln=True)
         self.cell(0, 5, "Fenix Engenharia e Comercio LTDA - Contato: (31) 99539-2027", align="C")
-
-# ─── CONECTIVIDADE E ATUALIZAÇÃO COMPLETA NO GITHUB ───
+# ==============================================================================
+# BLOCO 2: CONECTIVIDADE COM REPOSITÓRIO GITHUB E BANCO DE DATASETS
+# ==============================================================================
 def salvar_no_github(nome_arquivo_csv, df_novo, sobrescrever=False):
     try:
         token = st.secrets["GITHUB_TOKEN"].strip()
@@ -178,7 +179,7 @@ aba_orc_ponto, aba_calc_preco, aba_clientes, aba_mao_obra, aba_materiais, aba_ve
     "📍 Orçamento por Ponto", "📊 Cálculo de Preço", "👥 Cadastro de Clientes", "⏱️ Mão de Obra & Serviços", "🛒 Cadastro de Materiais", "🚚 Cadastro de Veículos"
 ])
 # ==============================================================================
-# BLOCO 2: SEÇÕES DE CADASTRO PARA CLIENTES E VEÍCULOS (EDIÇÃO E EXCLUSÃO)
+# BLOCO 3: CLIENTES E FROTA COM CÁLCULO DE DEPRECIAÇÃO LINEAR POR QUILÔMETRO
 # ==============================================================================
 
 # ABA - CADASTRO DE CLIENTES
@@ -218,59 +219,58 @@ with aba_clientes:
                 df_cli.loc[idx_cli, "Endereço"] = novo_end
                 salvar_no_github("clientes.csv", df_cli, sobrescrever=True)
                 st.session_state.clientes = df_cli.to_dict(orient="records")
-                st.success("Dados do cliente alterados!")
+                st.success("Dados alterados!")
                 st.rerun()
             if st.button("🗑️ Excluir Cliente do Sistema", key="btn_del_cli"):
                 df_cli = df_cli.drop(idx_cli)
                 salvar_no_github("clientes.csv", df_cli, sobrescrever=True)
                 st.session_state.clientes = df_cli.to_dict(orient="records")
-                st.error("Cliente removido!")
                 st.rerun()
 
-# ABA - CADASTRO DE VEÍCULOS
+# ABA - GESTÃO DE VEÍCULOS (DEPRECIAÇÃO INCORPORADA)
 with aba_veiculos:
-    st.subheader("🚚 Gestão, Edição e Remoção de Veículos")
-    with st.form("form_veiculo", clear_on_submit=True):
+    st.subheader("🚚 Frota Corporativa e Métricas de Depreciação Mecânica")
+    with st.form("form_veiculo_avancado", clear_on_submit=True):
         col_v1, col_v2 = st.columns(2)
         with col_v1:
             v_modelo = st.text_input("Modelo do Veículo:")
             v_placa = st.text_input("Placa do Veículo:")
+            v_consumo = st.number_input("Consumo Médio (Km/Litro):", min_value=1.0, value=11.0, step=0.5)
         with col_v2:
-            v_km = st.number_input("Custo estimado por Km rodado (R$):", min_value=0.0, value=1.20, step=0.10)
+            v_compra = st.number_input("Valor de Compra (R$):", min_value=0.0, value=60000.0, step=5000.0)
+            v_residual = st.number_input("Valor Residual Estimado (R$):", min_value=0.0, value=20000.0, step=5000.0)
+            v_vida_util = st.number_input("Vida Útil Estimada Total (Anos):", min_value=1, value=5, step=1)
+            v_km_ano = st.number_input("Média de KM Rodados por Ano:", min_value=1.0, value=15000.0, step=1000.0)
             
-        if st.form_submit_button("💾 Salvar Veículo"):
-            if v_modelo:
-                novo_df = pd.DataFrame([{"Modelo": v_modelo, "Placa": v_placa, "Custo/Km": v_km}])
-                salvar_no_github("veiculos.csv", novo_df)
+        if st.form_submit_button("💾 Salvar Veículo e Métricas"):
+            if v_modelo and v_placa:
+                depreciacao_anual = (v_compra - v_residual) / v_vida_util
+                depreciacao_por_km = depreciacao_anual / v_km_ano
+                
+                novo_veic_df = pd.DataFrame([{
+                    "Modelo": v_modelo,
+                    "Placa": v_placa,
+                    "Consumo (Km/L)": v_consumo,
+                    "Depreciação por KM (R$)": round(depreciacao_por_km, 2),
+                    "KM Anual Padrão": v_km_ano
+                }])
+                salvar_no_github("veiculos.csv", novo_veic_df)
                 st.session_state.veiculos = carregar_dados("veiculos.csv")
-                st.success(f"Veículo '{v_modelo}' inserido!")
+                st.success("Métricas de desgaste salvas!")
                 st.rerun()
 
     if st.session_state.veiculos:
         df_veic = pd.DataFrame(st.session_state.veiculos)
         st.dataframe(df_veic, use_container_width=True)
-        st.markdown("#### ✏️ Alterar ou Excluir Veículo")
-        veic_para_gerenciar = st.selectbox("Selecione o Veículo pela Placa:", df_veic["Placa"].tolist(), key="sel_veic")
-        idx_veic = df_veic[df_veic["Placa"] == veic_para_gerenciar].index
-        col_ev1, col_ev2 = st.columns(2)
-        with col_ev1:
-            novo_custo_km = st.number_input("Alterar Custo por KM (R$):", min_value=0.0, value=float(df_veic.loc[idx_veic, "Custo/Km"].values), step=0.10)
-        with col_ev2:
-            st.write("")
-            if st.button("📝 Confirmar Alteração de Valor KM", key="btn_edit_veic"):
-                df_veic.loc[idx_veic, "Custo/Km"] = novo_custo_km
-                salvar_no_github("veiculos.csv", df_veic, sobrescrever=True)
-                st.session_state.veiculos = df_veic.to_dict(orient="records")
-                st.success("Valor de KM alterado!")
-                st.rerun()
-            if st.button("🗑️ Remover Veículo da Frota", key="btn_del_veic"):
-                df_veic = df_veic.drop(idx_veic)
-                salvar_no_github("veiculos.csv", df_veic, sobrescrever=True)
-                st.session_state.veiculos = df_veic.to_dict(orient="records")
-                st.error("Veículo excluído!")
-                st.rerun()
+        st.markdown("#### 🗑️ Remover Automóvel")
+        veic_del = st.selectbox("Escolha pela Placa para Excluir:", df_veic["Placa"].tolist(), key="del_veic_box")
+        if st.button("Excluir Veículo Selecionado"):
+            df_veic = df_veic[df_veic["Placa"] != veic_del]
+            salvar_no_github("veiculos.csv", df_veic, sobrescrever=True)
+            st.session_state.veiculos = df_veic.to_dict(orient="records")
+            st.rerun()
 # ==============================================================================
-# BLOCO 3: ALMOXARIFADO E PORTFÓLIO DE SERVIÇOS COM UNIDADE DE MEDIDA CUSTOMIZADA
+# BLOCO 4: ALMOXARIFADO E PORTFÓLIO DE SERVIÇOS COM UNIDADE DE MEDIDA CUSTOMIZADA
 # ==============================================================================
 
 # ABA - CADASTRO DE MATERIAIS
@@ -282,7 +282,7 @@ with aba_materiais:
             mat_nome = st.text_input("Nome do Material:")
             mat_marca = st.text_input("Marca / Fabricante:")
         with col_m2:
-            mat_unidade = st.text_input("Unidade de Medida livre (Ex: UN, m, cx, barra):", placeholder="UN")
+            mat_unidade = st.text_input("Unidade de Medida livre:", placeholder="UN")
             mat_preco = st.number_input("Preço de Custo Padrão (R$):", min_value=0.0, value=0.0, step=5.0)
             
         if st.form_submit_button("💾 Salvar Material"):
@@ -290,32 +290,19 @@ with aba_materiais:
                 novo_df = pd.DataFrame([{"Item": mat_nome, "Marca": mat_marca, "Unidade": mat_unidade if mat_unidade else "UN", "Preço Unitário": mat_preco}])
                 salvar_no_github("materiais.csv", novo_df)
                 st.session_state.materiais = carregar_dados("materiais.csv")
-                st.success(f"'{mat_nome}' adicionado!")
+                st.success("Material adicionado!")
                 st.rerun()
 
     if st.session_state.materiais:
         df_mat = pd.DataFrame(st.session_state.materiais)
         st.dataframe(df_mat, use_container_width=True)
-        st.markdown("#### ✏️ Alterar Dados ou Remover Produto")
-        mat_para_gerenciar = st.selectbox("Selecione o Material para Modificar:", df_mat["Item"].tolist(), key="sel_mat")
-        idx_mat = df_mat[df_mat["Item"] == mat_para_gerenciar].index
-        col_em1, col_em2 = st.columns(2)
-        with col_em1:
-            novo_un_mat = st.text_input("Alterar Unidade:", value=str(df_mat.loc[idx_mat, "Unidade"].values) if "Unidade" in df_mat.columns else "UN")
-            novo_preco_mat = st.number_input("Alterar Preço (R$):", min_value=0.0, value=float(df_mat.loc[idx_mat, "Preço Unitário"].values))
-        with col_em2:
-            st.write("")
-            if st.button("📝 Confirmar Ajustes", key="btn_edit_mat"):
-                df_mat.loc[idx_mat, "Unidade"] = novo_un_mat
-                df_mat.loc[idx_mat, "Preço Unitário"] = novo_preco_mat
-                salvar_no_github("materiais.csv", df_mat, sobrescrever=True)
-                st.session_state.materiais = df_mat.to_dict(orient="records")
-                st.rerun()
-            if st.button("🗑️ Excluir Material", key="btn_del_mat"):
-                df_mat = df_mat.drop(idx_mat)
-                salvar_no_github("materiais.csv", df_mat, sobrescrever=True)
-                st.session_state.materiais = df_mat.to_dict(orient="records")
-                st.rerun()
+        st.markdown("#### 🗑️ Excluir Material")
+        mat_del = st.selectbox("Escolha para Remover:", df_mat["Item"].tolist(), key="del_mat_box")
+        if st.button("Excluir Item do Estoque"):
+            df_mat = df_mat[df_mat["Item"] != mat_del]
+            salvar_no_github("materiais.csv", df_mat, sobrescrever=True)
+            st.session_state.materiais = df_mat.to_dict(orient="records")
+            st.rerun()
 
 # ABA - MÃO DE OBRA E PORTFÓLIO DE SERVIÇOS
 with aba_mao_obra:
@@ -326,7 +313,7 @@ with aba_mao_obra:
             ts_qtd = st.number_input("Quantidade:", min_value=0.0, value=1.0, step=1.0)
             ts_desc = st.text_input("Descrição do Serviço:")
         with col_s2:
-            ts_unidade = st.text_input("Unidade de Medida livre (Ex: UN, h, diária):", placeholder="UN")
+            ts_unidade = st.text_input("Unidade de Medida livre:", placeholder="UN")
             ts_compra = st.number_input("Valor de Compra (Preço Unitário R$):", min_value=0.0, value=0.0, step=50.0)
             
         if st.form_submit_button("💾 Salvar Serviço no GitHub"):
@@ -349,32 +336,15 @@ with aba_mao_obra:
         if "Total Bruto (R$)" not in df_serv.columns: df_serv["Total Bruto (R$)"] = df_serv["Quantidade"] * df_serv["Valor Compra Un. (R$)"]
         
         st.dataframe(df_serv, use_container_width=True)
-        st.markdown("#### ✏️ Alterar ou Excluir Serviço")
-        lista_descricoes = df_serv["Descrição"].dropna().tolist()
-        serv_para_gerenciar = st.selectbox("Selecione o Serviço para Modificar:", lista_descricoes, key="sel_serv")
-        idx_serv = df_serv[df_serv["Descrição"] == serv_para_gerenciar].index
-        col_es1, col_es2 = st.columns(2)
-        with col_es1:
-            novo_un_serv = st.text_input("Alterar Unidade do Serviço:", value=str(df_serv.loc[idx_serv, "Unidade"].values) if idx_serv.any() else "UN")
-            novo_qtd_serv = st.number_input("Alterar Qtd:", min_value=0.0, value=float(df_serv.loc[idx_serv, "Quantidade"].values) if idx_serv.any() else 1.0)
-            novo_preco_serv = st.number_input("Alterar Valor Unitário (R$):", min_value=0.0, value=float(df_serv.loc[idx_serv, "Valor Compra Un. (R$)"].values) if idx_serv.any() else 0.0)
-        with col_es2:
-            st.write("")
-            if st.button("📝 Confirmar Mudanças", key="btn_edit_serv"):
-                df_serv.loc[idx_serv, "Unidade"] = novo_un_serv
-                df_serv.loc[idx_serv, "Quantidade"] = novo_qtd_serv
-                df_serv.loc[idx_serv, "Valor Compra Un. (R$)"] = novo_preco_serv
-                df_serv.loc[idx_serv, "Total Bruto (R$)"] = novo_qtd_serv * novo_preco_serv
-                salvar_no_github("servicos.csv", df_serv, sobrescrever=True)
-                st.session_state.servicos = df_serv.to_dict(orient="records")
-                st.rerun()
-            if st.button("🗑️ Excluir Serviço", key="btn_del_serv"):
-                df_serv = df_serv.drop(idx_serv)
-                salvar_no_github("servicos.csv", df_serv, sobrescrever=True)
-                st.session_state.servicos = df_serv.to_dict(orient="records")
-                st.rerun()
+        st.markdown("#### 🗑️ Remover Serviço")
+        serv_del = st.selectbox("Escolha para Remover:", df_serv["Descrição"].tolist(), key="del_serv_box")
+        if st.button("Excluir Serviço do Portfólio"):
+            df_serv = df_serv[df_serv["Descrição"] != serv_del]
+            salvar_no_github("servicos.csv", df_serv, sobrescrever=True)
+            st.session_state.servicos = df_serv.to_dict(orient="records")
+            st.rerun()
 # ==============================================================================
-# BLOCO 4: ORÇAMENTO POR PONTO, CÁLCULO DE PREÇO E INJEÇÃO DO QR CODE NO PDF
+# BLOCO 5: CÁLCULOS ANALÍTICOS, LOGÍSTICA DE COMBUSTÍVEL + DEPRECIAÇÃO E PDF
 # ==============================================================================
 
 def ler_arquivo_txt(n, d): return open(n, "r", encoding="utf-8").read() if os.path.exists(n) else d
@@ -382,7 +352,7 @@ t_pag = ler_arquivo_txt("pagamento.txt", "A combinar.")
 t_gar = ler_arquivo_txt("garantia.txt", "90 dias.")
 t_obs = ler_arquivo_txt("observacoes.txt", "Sem alteração estrutural.")
 
-# ─── 1. NOVA ABA: CÁLCULO DE PREÇO GERAL ───
+# ─── 1. ABA: CÁLCULO DE PREÇO GERAL ───
 with aba_calc_preco:
     st.subheader("📊 Painel de Cálculo Analítico de Preços")
     col_cp1, col_cp2 = st.columns(2)
@@ -425,16 +395,26 @@ with aba_orc_ponto:
         op_valor_ponto = st.number_input("Valor por Ponto Elétrico (R$):", min_value=0.0, value=120.0, step=10.0)
         op_qtd_pontos = st.number_input("Quantidade de Pontos Totais:", min_value=0.0, value=10.0, step=1.0)
         mo_total_v = op_valor_ponto * op_qtd_pontos
-        st.info(f"Subtotal da Mão de Obra ({int(op_qtd_pontos)} pontos): R$ {mo_total_v:.2f}")
+        st.info(f"Subtotal da Mão de Obra: R$ {mo_total_v:.2f}")
 
+        # ─── MÓDULO LOGÍSTICO COMPLETO COM DEPRECIAÇÃO + COMBUSTÍVEL ───
+        st.markdown("### 🚘 Engenharia de Deslocamento e Logística")
         if st.session_state.veiculos:
             lista_v = [f"{v['Modelo']} ({v['Placa']})" for v in st.session_state.veiculos]
-            v_sel = st.selectbox("Veículo:", lista_v, key="orc_p_veic")
-            km_r = st.number_input("KM Estimado:", min_value=0.0, value=0.0, key="km_p")
+            v_sel = st.selectbox("Selecione o Veículo para o Serviço:", lista_v, key="orc_p_veic")
+            km_r = st.number_input("Distância total (Ida + Volta em KM):", min_value=0.0, value=20.0, key="km_p")
+            preco_combustivel = st.number_input("Preço do Litro do Combustível (R$):", min_value=0.0, value=5.90, step=0.10)
+            
             idx = lista_v.index(v_sel)
-            custo_transporte = km_r * st.session_state.veiculos[idx]["Custo/Km"]
+            dados_carro = st.session_state.veiculos[idx]
+            
+            custo_apenas_combustivel = (km_r / float(dados_carro["Consumo (Km/L)"])) * preco_combustivel
+            custo_apenas_depreciacao = km_r * float(dados_carro["Depreciação por KM (R$)"])
+            custo_transporte = custo_apenas_combustivel + custo_apenas_depreciacao
+            
+            st.caption(f"⛽ Combustível: R$ {custo_apenas_combustivel:.2f} | 🛠️ Desgaste/Depreciação: R$ {custo_apenas_depreciacao:.2f}")
         else:
-            custo_transporte = st.number_input("Deslocamento Manual (R$):", min_value=0.0, value=0.0, key="des_p")
+            custo_transporte = st.number_input("Deslocamento Manual Total (R$):", min_value=0.0, value=0.0, key="des_p")
 
     with col_op2:
         st.markdown("### 2. Materiais Aplicados nos Pontos")
@@ -482,9 +462,9 @@ with aba_orc_ponto:
 
     st.markdown("### 📊 Fechamento do Orçamento por Ponto")
     rm1, rm2, rm3, rm4, rm5 = st.columns(5)
-    rm1.metric("Mão de Obra (Pontos)", f"R$ {mo_total_v:.2f}")
+    rm1.metric("Mão de Obra", f"R$ {mo_total_v:.2f}")
     rm2.metric("Materiais", f"R$ {total_m_lucro:.2f}")
-    rm3.metric("Logística", f"R$ {custo_transporte:.2f}")
+    rm3.metric("Logística (Total)", f"R$ {custo_transporte:.2f}")
     rm4.metric("Impostos", f"R$ {impostos_finais:.2f}")
     rm5.metric("PREÇO FINAL", f"R$ {preco_final:.2f}", delta=f"- R$ {desc_v:.2f}" if desc_v > 0 else None)
 
@@ -515,8 +495,8 @@ with aba_orc_ponto:
     pdf.set_font("Helvetica", "", 10)
     pdf.cell(0, 6, f"- Mao de Obra calculada por Pontos: R$ {mo_total_v:.2f}", ln=True)
     pdf.cell(0, 6, f"- Fornecimento de Materiais: R$ {total_m_lucro:.2f}", ln=True)
-    pdf.cell(0, 6, f"- Logistica/Frota: R$ {custo_transporte:.2f}", ln=True)
-    pdf.cell(0, 6, f"- Encargos/Impostos: R$ {impostos_finais:.2f}", ln=True)
+    pdf.cell(0, 6, f"- Logistica Integrada (Desgaste + Combustivel): R$ {custo_transporte:.2f}", ln=True)
+    pdf.cell(0, 6, f"- Encargos e Impostos: R$ {impostos_finais:.2f}", ln=True)
     if desc_v > 0: pdf.cell(0, 6, f"- Desconto Concedido: - R$ {desc_v:.2f}", ln=True)
     pdf.set_font("Helvetica", "B", 11)
     pdf.cell(0, 8, f"VALOR TOTAL DO INVESTIMENTO: R$ {preco_final:.2f}", ln=True)
