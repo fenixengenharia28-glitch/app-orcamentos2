@@ -170,7 +170,7 @@ aba_orc_geral, aba_clientes, aba_mao_obra, aba_materiais, aba_veiculos = st.tabs
     "📋 Orçamento Geral", "👥 Gestão de Clientes", "🛠️ Gestão de Serviços", "🛒 Almoxarifado", "🚚 Frota e Logística"
 ])
 # ==============================================================================
-# BLOCO 6: CENTRAL DO ORÇAMENTO - PARTE 1: SELEÇÃO DE CLIENTE E PRESTAÇÕES
+# BLOCO 6: CENTRAL DO ORÇAMENTO - PARTE 1: SELEÇÃO DE CLIENTE E PRESTAÇÕES (FIXED)
 # ==============================================================================
 with aba_orc_geral:
     st.subheader("📋 Central Única de Emissão de Orçamentos")
@@ -204,7 +204,8 @@ with aba_orc_geral:
             
             if st.button("➕ Adicionar Serviço ao Escopo"):
                 linha_filtrada = df_serv_disp[df_serv_disp["Descrição"] == servico_escolhido]
-                preco_unitario_servico = float(linha_filtrada["Valor Compra Un. (R$)"].iloc)
+                # CORREÇÃO INTEGRAL DO INDEXADOR: .iloc mudado para .iloc[0] para evitar o TypeError de extração
+                preco_unitario_servico = float(linha_filtrada["Valor Compra Un. (R$)"].iloc[0])
                 preco_calculado_linha = preco_unitario_servico * qtd_servico_solicitado
                 
                 st.session_state.servicos_orcamento.append({
@@ -257,6 +258,7 @@ with aba_orc_geral:
         st.markdown("#### 🚚 Logística Automotiva de Atendimento")
         custo_transporte = 0.0
         depreciacao_veiculo_proporcional = 0.0
+        margem_manutencao_veiculo = 0.0
         if st.session_state.veiculos:
             df_v_orc = pd.DataFrame(st.session_state.veiculos)
             lista_v = [f"{v['Modelo']} ({v['Placa']})" for v in st.session_state.veiculos]
@@ -271,8 +273,6 @@ with aba_orc_geral:
             
             custo_transporte = (km_r / cons_carro) * preco_combustivel
             depreciacao_veiculo_proporcional = (dep_anual / 365)
-        else:
-            margem_manutencao_veiculo = 0.0
 # ==============================================================================
 # BLOCO 8: ENGENHARIA FINANCEIRA - CÁLCULOS ANALÍTICOS DE PROPOSTA
 # ==============================================================================
@@ -284,7 +284,6 @@ with aba_orc_geral:
     # Processamento dos somatórios com as regras de diluição
     custo_bruto_materiais = sum([item["Total"] for item in st.session_state.materiais_orcamento])
     
-    # REQUISITO: Valores de Mão de Obra normais e Bônus passam a ser mapeados separadamente
     custo_total_servicos_normais = sum([item["Total"] for item in st.session_state.servicos_orcamento if not item["Bônus"]])
     valor_total_bonus_exibicao = sum([item["Total"] for item in st.session_state.servicos_orcamento if item["Bônus"]])
     
@@ -295,7 +294,6 @@ with aba_orc_geral:
     # Mão de obra absorve impostos, combustível, depreciação e manutenção preventiva
     custo_final_servicos_com_imposto = custo_total_servicos_normais + valor_imposto_real + total_custos_frota_diluiveis
     
-    # REQUISITO: O bônus entra com o seu valor, mas gera dedução direta na composição do fechamento
     preco_final_cheio = (custo_final_servicos_com_imposto + custo_bruto_materiais) - valor_total_bonus_exibicao - desconto_v_manual
     if preco_final_cheio < 0: preco_final_cheio = 0.0
     
@@ -358,7 +356,7 @@ with aba_orc_geral:
     
     pdf.ln(8)
     
-    # REQUISITO: Discriminação obrigatória do valor da Mão de Obra, Bônus, Material, Desconto e Valor Total
+    # Seção de composição com os 5 valores discriminados
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "COMPOSIÇÃO FINANCEIRA DO PROJETO", ln=True)
     pdf.set_font("Helvetica", "", 11)
@@ -371,7 +369,6 @@ with aba_orc_geral:
 # BLOCO 10: ALTERAÇÃO DE RÓTULO COMERCIAL E INJEÇÃO DE CONDIÇÕES DE PAGAMENTO
 # ==============================================================================
     pdf.ln(4)
-    # REQUISITO: Rótulo "VALOR TOTAL DO INVESTIMENTO LÍQUIDO FENIX:" alterado para "valor total do investimento"
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, f"valor total do investimento: R$ {preco_final_cheio:.2f}", ln=True)
     pdf.ln(10)
@@ -457,6 +454,7 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
                     st.rerun()
 
 renderizar_crud(aba_clientes, "cli", "clientes.csv", ["Nome", "Documento", "Contato", "Endereço"], {})
+# Unificada a chave exata para "Valor Compra Un. (R$)" para conversar com a busca da interface
 renderizar_crud(aba_mao_obra, "serv", "servicos.csv", ["Descrição", "Valor Compra Un. (R$)"], {})
 renderizar_crud(aba_materiais, "mat", "materiais.csv", ["Item", "Marca", "Unidade", "Preço Unitário"], {})
 renderizar_crud(aba_veiculos, "vei", "veiculos.csv", ["Modelo", "Placa", "Consumo (Km/L)", "Depreciação Anual Est."], {})
