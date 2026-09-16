@@ -1,5 +1,5 @@
 # ==============================================================================
-# BLOCO 1: IMPORTAÇÕES, ENGINE DO GITHUB, PERSISTÊNCIA E CABEÇALHO TÉCNICO PDF
+# BLOCO 1: IMPORTAÇÕES, ENGINE DO GITHUB, PERSISTÊNCIA E CABEÇALHO INTEGRADO PDF
 # ==============================================================================
 import streamlit as st
 import pandas as pd
@@ -20,46 +20,60 @@ WHATSAPP_NUMERO = "5531995392027"
 LINK_WHATSAPP = f"https://wa.me{WHATSAPP_NUMERO}"
 URL_QRCODE = f"https://googleapis.com{LINK_WHATSAPP}&choe=UTF-8"
 
-# ─── CLASSE DO PDF COM DESIGN DE CABEÇALHO EM TRÊS SEÇÕES ───
+# ─── CLASSE DO PDF COM DESIGN DE CABEÇALHO PERFEITAMENTE DISTRIBUÍDO ───
 class PDFOrcamento(FPDF):
     def __init__(self, logo_bytes=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.logo_bytes = logo_bytes
 
     def header(self):
+        # 1. LOGO INTEGRADA NO CANTO ESQUERDO
         if self.logo_bytes:
             with open("temp_logo.png", "wb") as f:
                 f.write(self.logo_bytes)
-            self.image("temp_logo.png", 10, 8, 32)
+            self.image("temp_logo.png", 10, 8, 30)
             if os.path.exists("temp_logo.png"):
                 os.remove("temp_logo.png")
         
-        self.set_y(10)
+        self.set_y(8)
         
-        self.set_font("Helvetica", "B", 12)  # Nome da Empresa em Destaque
-        self.cell(0, 5, "Fenix Engenharia e Comercio LTDA", ln=True, align="C")
+        # 2. DADOS DA EMPRESA CENTRALIZADOS (NOME EM MAIÚSCULO E ENDEREÇO EM 3 LINHAS)
+        self.set_font("Helvetica", "B", 12)  
+        self.cell(0, 5, "FENIX ENGENHARIA E COMERCIO LTDA", ln=True, align="C")
         
-        self.set_font("Helvetica", "", 8.5)
-        self.cell(0, 4.5, "CNPJ: 52.769.953/0001-12", ln=True, align="C")
-        self.cell(0, 4.5, "Avenida Getulio Vargas, nº 671, 9º Andar, Sala 1051, Bairro Savassi, Belo Horizonte - MG, Cep: 30112-021", ln=True, align="C")
+        self.set_font("Helvetica", "B", 8.5)
+        self.cell(0, 4, "CNPJ: 52.769.953/0001-12", ln=True, align="C")
         
-        self.ln(8)  # Salto de duas linhas
+        self.set_font("Helvetica", "", 8)
+        self.cell(0, 4, "Avenida Getulio Vargas, nº 671, 9º Andar, Sala 1051", ln=True, align="C")
+        self.cell(0, 4, "Bairro Savassi - Belo Horizonte - MG", ln=True, align="C")
+        self.cell(0, 4, "Cep: 30112-021", ln=True, align="C")
         
-        self.set_font("Helvetica", "B", 10.5)
+        self.set_font("Helvetica", "B", 9.5)
         self.cell(0, 5, "PRESTAÇÃO DE SERVIÇOS ELÉTRICOS E ENGENHARIA", ln=True, align="C")
         
-        self.set_y(10)
-        self.set_font("Helvetica", "B", 10)
-        self.set_x(155)
-        self.cell(45, 5, "WhatsApp:", ln=True, align="R")
-        self.set_x(155)
-        self.set_font("Helvetica", "", 10)
-        self.cell(45, 4, "(31) 99539-2027", ln=True, align="R")
+        # 3. QR CODE DO WHATSAPP FIXADO NO OUTRO LADO (CANTO DIREITO)
+        try:
+            qr_res = requests.get(URL_QRCODE, timeout=5)
+            if qr_res.status_code == 200:
+                with open("temp_header_qr.png", "wb") as f:
+                    f.write(qr_res.content)
+                # Injeta o QR Code alinhado à direita na posição X=172, Y=8 com 28mm de tamanho
+                self.image("temp_header_qr.png", 172, 8, 28, 28)
+                if os.path.exists("temp_header_qr.png"):
+                    os.remove("temp_header_qr.png")
+        except Exception:
+            # Caso a API de QR Code falhe, insere o texto como plano B
+            self.set_y(12)
+            self.set_font("Helvetica", "B", 10)
+            self.set_x(155)
+            self.cell(45, 5, "(31) 99539-2027", ln=True, align="R")
         
+        # Linha divisória cinza reposicionada milimetricamente abaixo do endereço quebrado
         self.set_draw_color(200, 200, 200)
         self.set_line_width(0.3)
         self.line(10, 42, 200, 42)
-        self.set_y(50)
+        self.set_y(48)
 
     def footer(self):
         self.set_y(-25)
@@ -67,7 +81,7 @@ class PDFOrcamento(FPDF):
         self.line(10, 270, 200, 270)
         self.set_font("Helvetica", "I", 8)
         self.cell(0, 10, f"Página {self.page_no()}/{{nb}}", align="C", ln=True)
-        self.cell(0, 5, "Fenix Engenharia e Comercio LTDA - Contato: (31) 99539-2027", align="C")
+        self.cell(0, 5, "FENIX ENGENHARIA E COMERCIO LTDA - Contato: (31) 99539-2027", align="C")
 # ==============================================================================
 # BLOCO 2: CONECTIVIDADE COM REPOSITÓRIO GITHUB E NORMALIZAÇÃO DE DADOS
 # ==============================================================================
@@ -94,11 +108,9 @@ def salvar_no_github(nome_arquivo_csv, df_novo, sobrescrever=False):
                 from io import StringIO
                 df_antigo = pd.read_csv(StringIO(conteudo_antigo))
                 
-                # Sincronização estrutural de arquivos antigos de serviços
                 if nome_arquivo_csv == "servicos.csv" and "Serviço" in df_antigo.columns:
                     df_antigo = df_antigo.rename(columns={"Serviço": "Descrição", "Preço Base": "Valor Compra Un. (R$)"})
                 
-                # Sincronização estrutural de arquivos antigos de veículos
                 if nome_arquivo_csv == "veiculos.csv":
                     if "Consumo Médio (Km/Litro)" in df_antigo.columns:
                         df_antigo = df_antigo.rename(columns={"Consumo Médio (Km/Litro)": "Consumo (Km/L)"})
@@ -167,7 +179,7 @@ def carregar_logo_persistida():
         with open("logo_local.png", "rb") as f: return f.read()
     return None
 
-# Inicialização de estados síncronos
+# Inicialização de estados
 if 'clientes' not in st.session_state: st.session_state.clientes = carregar_dados("clientes.csv")
 if 'veiculos' not in st.session_state: st.session_state.veiculos = carregar_dados("veiculos.csv")
 if 'materiais' not in st.session_state: st.session_state.materiais = carregar_dados("materiais.csv")
@@ -177,7 +189,7 @@ if 'logo_bytes' not in st.session_state: st.session_state.logo_bytes = carregar_
 
 col_topo1, col_topo2 = st.columns(2)
 with col_topo1:
-    st.markdown("### Fenix Engenharia e Comercio LTDA")
+    st.markdown("### FENIX ENGENHARIA E COMERCIO LTDA")
     logo_upload = st.file_uploader("Upload da Logo (PNG/JPG):", type=["png", "jpg", "jpeg"])
     if logo_upload:
         bytes_da_logo = logo_upload.getvalue()
@@ -194,7 +206,7 @@ aba_orc_ponto, aba_calc_preco, aba_clientes, aba_mao_obra, aba_materiais, aba_ve
     "📍 Orçamento por Ponto", "📊 Cálculo de Preço", "👥 Cadastro de Clientes", "⏱️ Mão de Obra & Serviços", "🛒 Cadastro de Materiais", "🚚 Cadastro de Veículos"
 ])
 # ==============================================================================
-# BLOCO 3: CADASTRO DE CLIENTES AND MÓDULO DE FROTA BLINDADO COM EXTRAÇÃO ILOC
+# BLOCO 3: CADASTRO DE CLIENTES E MÓDULO DE FROTA BLINDADO COM EXTRAÇÃO .ILOC
 # ==============================================================================
 
 # ABA - CADASTRO DE CLIENTES
@@ -221,7 +233,7 @@ with aba_clientes:
         df_cli = pd.DataFrame(st.session_state.clientes)
         st.dataframe(df_cli, use_container_width=True)
 
-# ABA - GESTÃO DE VEÍCULOS COM BLINDAGEM CONTRA TYPEERROR
+# ABA - GESTÃO DE VEÍCULOS SIMPLIFICADA
 with aba_veiculos:
     st.subheader("🚚 Cadastro de Veículos e Calculadora de Combustível")
     col_v_esq, col_v_dir = st.columns(2)
@@ -255,7 +267,7 @@ with aba_veiculos:
             km_servico = st.number_input("Quilômetros totais estimados (Ida + Volta):", min_value=0.0, value=50.0)
             preco_litro = st.number_input("Preço atual do litro (R$):", min_value=0.0, value=5.90, step=0.10)
             
-            # CORREÇÃO CRUCIAL DA LINHA 251: Extração blindada com .iloc[0] convertida com segurança
+            # Extração blindada via .iloc para evitar erros de tipo na interface
             consumo_carro = float(df_veic_calc[df_veic_calc["Placa"] == veic_sel_calc]["Consumo (Km/L)"].iloc[0])
             custo_combustivel_calculado = (km_servico / consumo_carro) * preco_litro
             st.metric("Custo Estimado de Combustível", f"R$ {custo_combustivel_calculado:.2f}")
@@ -320,7 +332,7 @@ with aba_mao_obra:
         df_serv = pd.DataFrame(st.session_state.servicos)
         st.dataframe(df_serv, use_container_width=True)
 # ==============================================================================
-# BLOCO 5: CÁLCULOS ANALÍTICOS, LOGÍSTICA COMPLETA E GERAÇÃO FINAL DO PDF
+# BLOCO 5: CÁLCULOS ANALÍTICOS, LOGÍSTICA SIMPLIFICADA E GERAÇÃO FINAL DO PDF
 # ==============================================================================
 
 def ler_arquivo_txt(n, d): return open(n, "r", encoding="utf-8").read() if os.path.exists(n) else d
@@ -382,7 +394,6 @@ with aba_orc_ponto:
             preco_combustivel = st.number_input("Preço do Combustível (R$/L):", min_value=0.0, value=5.90, key="prc_comb_p")
             
             idx = lista_v.index(v_sel)
-            # Extração blindada com .iloc[0] também no fechamento do orçamento
             cons_carro = float(df_v_orc.iloc[idx]["Consumo (Km/L)"])
             custo_transporte = (km_r / cons_carro) * preco_combustivel
             st.caption(f"Custo de Combustível Calculado: R$ {custo_transporte:.2f}")
@@ -441,7 +452,7 @@ with aba_orc_ponto:
     rm4.metric("Impostos", f"R$ {impostos_finais:.2f}")
     rm5.metric("PREÇO FINAL", f"R$ {preco_final:.2f}", delta=f"- R$ {desc_v:.2f}" if desc_v > 0 else None)
 
-    # ─── GERAÇÃO DO ARQUIVO PDF COM QR CODE ACOPLADO ───
+    # ─── GERAÇÃO DO ARQUIVO PDF COM DESIGN ATUALIZADO ───
     pdf = PDFOrcamento(logo_bytes=st.session_state.logo_bytes)
     pdf.add_page()
     pdf.set_font("Helvetica", "", 11)
@@ -475,7 +486,7 @@ with aba_orc_ponto:
     pdf.cell(0, 8, f"VALOR TOTAL DO INVESTIMENTO: R$ {preco_final:.2f}", ln=True)
     pdf.ln(5)
 
-    # Termos Comerciais e QR CODE INJETADO LADO A LADO
+    # Termos Comerciais e QR CODE INJETADO LADO A LADO Conforme Layout
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 8, "CONDIÇÕES COMERCIAIS", ln=True)
     
