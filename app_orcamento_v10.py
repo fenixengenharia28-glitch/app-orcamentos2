@@ -1,7 +1,7 @@
 # ==============================================================================
 # BLOCO 1: IMPORTAÇÕES, DEPENDÊNCIAS E CONFIGURAÇÃO DA PÁGINA
 # ==============================================================================
-import streamlit st
+import streamlit as st
 import pandas as pd
 import requests
 import base64
@@ -228,13 +228,11 @@ with aba_orc_geral:
             lista_servicos_nomes = df_serv_disp["Descrição"].dropna().tolist()
             servico_escolhido = st.selectbox("Escolha qual tipo de serviço será prestado:", lista_servicos_nomes)
             
-            # ATUALIZAÇÃO REQUERIDA: Injeção do campo numérico para especificar a quantidade do serviço prestado
             qtd_servico_solicitado = st.number_input("Especifique a quantidade para este serviço:", min_value=1.0, value=1.0, step=1.0)
             servico_bonus = st.checkbox("Definir esta atividade como BÔNUS do orçamento (Dedução no Cálculo)")
             
             if st.button("➕ Adicionar Serviço ao Escopo"):
                 dados_s = df_serv_disp[df_serv_disp["Descrição"] == servico_escolhido].iloc[0]
-                # Multiplica o custo unitário pela quantidade informada antes de enviar para a lista do orçamento
                 preco_calculado_linha = float(dados_s["Valor Compra Un. (R$)"]) * qtd_servico_solicitado
                 
                 st.session_state.servicos_orcamento.append({
@@ -303,7 +301,7 @@ with aba_orc_geral:
 # ==============================================================================
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
-        desconto_ सविता_pc = desconto_avista_pc = st.number_input("Desconto para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
+        desconto_avista_pc = st.number_input("Desconto para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
 
     # Processamento analítico dos somatórios
     custo_bruto_materiais = sum([item["Total"] for item in st.session_state.materiais_orcamento])
@@ -467,11 +465,11 @@ with aba_mao_obra:
             if ts_desc:
                 ts_total_linha = ts_qtd * ts_compra
                 novo_serv_df = pd.DataFrame([{
-                    "Quantidade": ts_qtd, "Descrição": ts_desc, "Unidade": ts_unidade, "Valor Compras Un. (R$)": ts_compra, "Total Bruto (R$)": ts_total_linha
+                    "Quantidade": ts_qtd, "Descrição": ts_desc, "Unidade": ts_unidade, "Valor Compra Un. (R$)": ts_compra, "Total Bruto (R$)": ts_total_linha
                 }])
                 salvar_no_github("servicos.csv", novo_serv_df)
                 st.session_state.servicos = carregar_dados("servicos.csv")
-                st.success("Serviço catalogado!")
+                st.success("Serviço catalogado com sucesso!")
                 st.rerun()
 
     if st.session_state.servicos:
