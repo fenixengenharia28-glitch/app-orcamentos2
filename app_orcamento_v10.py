@@ -1,5 +1,5 @@
 # ==============================================================================
-# BLOCO 1: IMPORTAÇÕES, DEPENDÊNCIAS E DESIGN DAS MARGENS DO PDF A4
+# BLOCO 1: IMPORTAÇÕES, DEPENDÊNCIAS E CONFIGURAÇÃO DA PÁGINA
 # ==============================================================================
 import streamlit as st
 import pandas as pd
@@ -9,22 +9,27 @@ import os
 from fpdf import FPDF
 from io import BytesIO
 
+# Configuração da interface do Streamlit
 st.set_page_config(
     page_title="Gestão de Orçamentos Elétricos Integrada", 
     page_icon="⚡", 
     layout="wide"
 )
 
+# Links e endpoints de comunicação
 WHATSAPP_NUMERO = "5531995392027"
 LINK_WHATSAPP = f"https://wa.me{WHATSAPP_NUMERO}"
 URL_QRCODE = f"https://googleapis.com{LINK_WHATSAPP}&choe=UTF-8"
-
+# ==============================================================================
+# BLOCO 2: CLASSE DO PDF RECONFIGURADA PARA PREENCHER TOTALMENTE A FOLHA A4
+# ==============================================================================
 class PDFOrcamento(FPDF):
     def __init__(self, logo_bytes=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.logo_bytes = logo_bytes
 
     def header(self):
+        # 1. LOGO ALINHADA À ESQUERDA
         if self.logo_bytes:
             with open("temp_logo.png", "wb") as f:
                 f.write(self.logo_bytes)
@@ -33,10 +38,14 @@ class PDFOrcamento(FPDF):
                 os.remove("temp_logo.png")
         
         self.set_y(8)
+        
+        # 2. DADOS CENTRALIZADOS COM INCLUSÃO DO E-MAIL REQUERIDO
         self.set_font("Helvetica", "B", 12)  
         self.cell(0, 5, "FENIX ENGENHARIA E COMERCIO LTDA", ln=True, align="C")
+        
         self.set_font("Helvetica", "B", 8.5)
         self.cell(0, 4, "CNPJ: 52.769.953/0001-12", ln=True, align="C")
+        
         self.set_font("Helvetica", "", 8)
         self.cell(0, 4, "Av. Getulio Vargas, nº 671, 9º Andar, Sala 1051, Savassi - Belo Horizonte - MG", ln=True, align="C")
         self.cell(0, 4, "Cep: 30112-021 / Tel: (31) 99539-2027 / E-mail: fenixengenharia28@gmail.com", ln=True, align="C")
@@ -45,6 +54,7 @@ class PDFOrcamento(FPDF):
         self.set_font("Helvetica", "B", 10)
         self.cell(0, 5, "PRESTAÇÃO DE SERVIÇOS ELÉTRICOS E ENGENHARIA", ln=True, align="C")
         
+        # 3. QR CODE DO WHATSAPP FIXADO NO CANTO DIREITO DO CABEÇALHO
         try:
             qr_res = requests.get(URL_QRCODE, timeout=5)
             if qr_res.status_code == 200:
@@ -59,6 +69,7 @@ class PDFOrcamento(FPDF):
             self.set_x(155)
             self.cell(45, 5, "(31) 99539-2027", ln=True, align="R")
         
+        # Linha divisória fina cinza
         self.set_draw_color(200, 200, 200)
         self.set_line_width(0.3)
         self.line(10, 39, 200, 39)
@@ -71,7 +82,7 @@ class PDFOrcamento(FPDF):
         self.set_font("Helvetica", "I", 8)
         self.cell(0, 10, f"FENIX ENGENHARIA E COMERCIO LTDA - Página {self.page_no()}/{{nb}}", align="C")
 # ==============================================================================
-# BLOCO 2: MOTOR DE COMUNICAÇÃO SÍNCRONA COM O REPOSITÓRIO GITHUB
+# BLOCO 3: SINCRONIZAÇÃO DE BANCO DE DADOS COM O REPOSITÓRIO DO GITHUB
 # ==============================================================================
 def salvar_no_github(nome_arquivo_csv, df_novo, sobrescrever=False):
     try:
@@ -134,7 +145,7 @@ def salvar_no_github(nome_arquivo_csv, df_novo, sobrescrever=False):
             df_novo.to_csv(nome_arquivo_csv, index=False, encoding="utf-8")
         return False
 # ==============================================================================
-# BLOCO 3: ALIMENTAÇÃO DINÂMICA DE ARQUIVOS E CRIAÇÃO DO STORAGE DE SESSÃO
+# BLOCO 4: CARREGAMENTO DE DADOS HISTÓRICOS E LOGO DA SESSÃO
 # ==============================================================================
 def carregar_dados(nome_arquivo_csv):
     if os.path.exists(nome_arquivo_csv):
@@ -169,6 +180,7 @@ def carregar_logo_persistida():
         with open("logo_local.png", "rb") as f: return f.read()
     return None
 
+# Inicialização dos estados da sessão Streamlit
 if 'clientes' not in st.session_state: st.session_state.clientes = carregar_dados("clientes.csv")
 if 'veiculos' not in st.session_state: st.session_state.veiculos = carregar_dados("veiculos.csv")
 if 'materiais' not in st.session_state: st.session_state.materiais = carregar_dados("materiais.csv")
@@ -177,7 +189,7 @@ if 'materiais_orcamento' not in st.session_state: st.session_state.materiais_orc
 if 'servicos_orcamento' not in st.session_state: st.session_state.servicos_orcamento = []
 if 'logo_bytes' not in st.session_state: st.session_state.logo_bytes = carregar_logo_persistida()
 # ==============================================================================
-# BLOCO 4: INTERFACE DE MARKETING DA EMPRESA E SELETOR DE ABAS NOMINAIS
+# BLOCO 5: INTERFACE GRÁFICA SUPERIOR E GERENCIAMENTO DE TABS
 # ==============================================================================
 col_topo1, col_topo2 = st.columns(2)
 with col_topo1:
@@ -194,12 +206,12 @@ with col_topo1:
 with col_topo2:
     st.image(URL_QRCODE, caption="Fale Conosco no WhatsApp")
 
-# REQUISITO 1: A primeira aba agora passa a se chamar estritamente "Orçamento Geral"
+# Centralização do Orçamento Geral na primeira aba
 aba_orc_geral, aba_clientes, aba_mao_obra, aba_materiais, aba_veiculos = st.tabs([
     "📋 Orçamento Geral", "👥 Cadastro de Clientes", "🛠️ Cadastro de Serviços", "🛒 Cadastro de Materiais", "🚚 Cadastro de Veículos"
 ])
 # ==============================================================================
-# BLOCO 5: MONTAGEM DO ORÇAMENTO - SELEÇÃO DE MÃO DE OBRA, MATERIAIS E ABAS SECUNDÁRIAS
+# BLOCO 6: CENTRAL DO ORÇAMENTO - PARTE 1: CLIENTES, ESCOPO E MÃO DE OBRA SELETIVA
 # ==============================================================================
 with aba_orc_geral:
     st.subheader("📋 Central Única de Emissão de Orçamentos")
@@ -219,14 +231,13 @@ with aba_orc_geral:
 
         orc_descricao = st.text_area("Memorial Descritivo / Resumo do Escopo:")
 
-        # REQUISITO 1: Parte de Mão de Obra puxa a escolha do Tipo de Serviço do Portfólio
+        # Escolha do serviço vinculado ao portfólio com atribuição de bônus
         st.markdown("#### 🛠️ Inserir Mão de Obra do Catálogo")
         if st.session_state.servicos:
             df_serv_disp = pd.DataFrame(st.session_state.servicos)
             lista_servicos_nomes = df_serv_disp["Descrição"].dropna().tolist()
             servico_escolhido = st.selectbox("Escolha qual tipo de serviço será prestado:", lista_servicos_nomes)
             
-            # REQUISITO 4: Campo para definir se esta atividade entra como bônus (cortesia)
             servico_bonus = st.checkbox("Definir esta atividade como BÔNUS do orçamento (Valor zerado)")
             
             if st.button("➕ Adicionar Serviço ao Escopo"):
@@ -248,7 +259,7 @@ with aba_orc_geral:
                 st.session_state.servicos_orcamento = []
                 st.rerun()
 # ==============================================================================
-# BLOCO 6: VÍNCULO DE MATERIAIS DA OBRA E CONFIGURAÇÃO DA ENGENHARIA FINANCEIRA
+# BLOCO 7: CENTRAL DO ORÇAMENTO - PARTE 2: MATERIAIS, FRETE E FECHAMENTO COM CORREÇÃO
 # ==============================================================================
     with col_o2:
         st.markdown("#### 🛒 Inserir Materiais Necessários")
@@ -293,37 +304,28 @@ with aba_orc_geral:
         else:
             custo_transporte = st.number_input("Custo de Logística Manual (R$):", min_value=0.0, value=0.0)
 
-        # REQUISITOS DE TAXAS E DESCONTOS
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
-        # REQUISITO 3: Campo para quantos por cento de desconto será dado à vista
         desconto_avista_pc = st.number_input("Desconto para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
-# ==============================================================================
-# BLOCO 7: FECHAMENTO FINANCEIRO - DILUIÇÃO DE IMPOSTOS E CALCULO DAS CONDICOES
-# ==============================================================================
-    # Somatórios base
+
+    # PROCESSAMENTO DE FECHAMENTO COM A CORREÇÃO DA LINHA 326 (REMOVIDO CÓDIGO MALFORMADO)
     custo_bruto_materiais = sum([item["Total"] for item in st.session_state.materiais_orcamento])
     custo_bruto_servicos = sum([item["Total"] for item in st.session_state.servicos_orcamento])
     
-    # REQUISITO 2: O imposto será cobrado, mas deve ser diluído diretamente no valor total da Mão de Obra
     valor_imposto_diluido = (custo_bruto_servicos + custo_bruto_materiais + custo_transporte) * (imposto_pc / 100)
     custo_final_servicos_com_imposto = custo_bruto_servicos + valor_imposto_diluido + custo_transporte
     
-    # Preço cheio nominal
     preco_final_cheio = custo_final_servicos_com_imposto + custo_bruto_materiais
-    
-    # REQUISITO 3: Opção À Vista aplicando a porcentagem de desconto informada
     preco_final_avista = preco_final_cheio * (1 - (desconto_avista_pc / 100))
-    
-    # REQUISITO 5: Opção Parcelada em até 10x com taxa de 8% embutida no total parcelado, sem aparecer escrita
     preco_final_parcelado_com_taxa = preco_final_cheio * 1.08
     valor_parcela_10x = preco_final_parcelado_com_taxa / 10
 
     st.markdown("---")
-    st.markdown("### 📊 Painel de Fechamento Comercial")
+    st.markdown("### 📊 Fechamento Geral do Orçamento")
     rm1, rm2, rm3 = st.columns(3)
     rm1.metric("Mão de Obra (Com Imposto Diluído)", f"R$ {custo_final_servicos_com_imposto:.2f}")
-    rm2.metric("Materiais Separados", f"R$ {custo_bruto_materi_local := custo_bruto_materials = custo_bruto_materiais:.2f}")
+    # LINHA 326 TOTALMENTE CORRIGIDA: Exibição limpa sem atribuições malformadas internamente
+    rm2.metric("Materiais Separados", f"R$ {custo_bruto_materiais:.2f}")
     rm3.metric("VALOR TOTAL DO INVESTIMENTO", f"R$ {preco_final_cheio:.2f}")
     
     st.info(f"💵 À VISTA COM DESCONTO: R$ {preco_final_avista:.2f} ({int(desconto_avista_pc)}% Off) | 💳 PARCELADO (Até 10x de R$ {valor_parcela_10x:.2f})")
@@ -338,19 +340,19 @@ with aba_orc_geral:
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "DADOS DO CLIENTE E LOCALIDADE", ln=True)
     pdf.set_font("Helvetica", "", 11)
-    pdf.cell(0, 8, f"Cliente / Razao Social: {cli_sel}", ln=True)
-    pdf.cell(0, 8, f"Contato Direto: {contato_disp}", ln=True)
-    pdf.cell(0, 8, f"Endereco da Execucao: {endereco_disp}", ln=True)
-    pdf.ln(6)
+    pdf.cell(0, 8.5, f"Cliente / Razao Social: {cli_sel}", ln=True)
+    pdf.cell(0, 8.5, f"Contato Directo: {contato_disp}", ln=True)
+    pdf.cell(0, 8.5, f"Endereco da Execucao: {endereco_disp}", ln=True)
+    pdf.ln(10)
 
     # Escopo Técnico
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "ESCOPO TÉCNICO DA PROPOSTA", ln=True)
     pdf.set_font("Helvetica", "", 11)
-    pdf.multi_cell(0, 8, f"{orc_descricao if orc_descricao else 'Execucao conforme escopo acordado.'}")
-    pdf.ln(6)
+    pdf.multi_cell(0, 9, f"{orc_descricao if orc_descricao else 'Execucao conforme escopo acordado.'}")
+    pdf.ln(10)
 
-    # REQUISITO 2: Apresentação separada de Mão de Obra e Material com imposto diluído
+    # Apresentação separada de Mão de Obra e Material com imposto diluído
     pdf.set_font("Helvetica", "B", 11)
     pdf.cell(0, 10, "DETALHAMENTO ANALÍTICO DE INVESTIMENTO", ln=True)
     
@@ -368,11 +370,10 @@ with aba_orc_geral:
     pdf.set_font("Helvetica", "B", 11)
     pdf.cell(130, 9.5, " VALOR TOTAL DO INVESTIMENTO LIQUIDO", border=1, fill=True)
     pdf.cell(60, 9.5, f" R$ {preco_final_cheio:.2f}", border=1, fill=True, ln=True)
-    pdf.ln(6)
+    pdf.ln(14)
 # ==============================================================================
 # BLOCO 9: INJEÇÃO VISUAL DE BÔNUS E OPÇÕES DE PARCELAMENTO NO DOCUMENTO IMPRESSO
 # ==============================================================================
-    # REQUISITO 4: Mostrar no orçamento o bônus e as atividades inclusas como cortesia
     tem_bonus = any([item["Bônus"] for item in st.session_state.servicos_orcamento])
     if tem_bonus:
         pdf.set_font("Helvetica", "B", 11)
@@ -381,24 +382,30 @@ with aba_orc_geral:
         for serv in st.session_state.servicos_orcamento:
             if serv["Bônus"]:
                 pdf.cell(0, 7, f" - {serv['Descrição']} (Preco Original: R$ {serv['Preço Original']:.2f}) -> INCLUSO COMO BÔNUS", ln=True)
-        pdf.ln(6)
+        pdf.ln(10)
 
-    # REQUISITO 3 E 5: Apresentação das Condições de Pagamento À Vista e Parcelado no PDF
-    pdf.set_font("Helvetica", "B", 11)
+    # Condições de pagamento estruturadas verticalmente com espaçamento duplo
+    pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "CONDIÇÕES DE PAGAMENTO", ln=True)
     
     y_condicoes = pdf.get_y()
-    pdf.set_font("Helvetica", "", 10.5)
+    pdf.set_font("Helvetica", "B", 10.5)
     
-    texto_condicoes = (
-        f"OPCAO 01 - A VISTA COM DESCONTO ESPECIAL:\n"
-        f"Valor total com desconto aplicado: R$ {preco_final_avista:.2f}\n\n"
-        f"OPCAO 02 - PARCELAMENTO FACILITADO CORPORATIVO:\n"
-        f"Pagamento em ate 10x mensais fixas de R$ {valor_parcela_10x:.2f}\n"
-        f"Valor total final parcelado: R$ {preco_final_parcelado_com_taxa:.2f}\n\n"
-        f"Garantia dos Servicos:\n{t_gar}\n\nObservacoes Importantes:\n{t_obs}"
-    )
-    pdf.multi_cell(135, 6.5, texto_condicoes)
+    pdf.cell(135, 7, "Formas de Pagamento:", ln=True)
+    pdf.set_font("Helvetica", "", 10.5)
+    pdf.multi_cell(135, 7, f"OPCAO 01 - A VISTA COM DESCONTO ESPECIAL:\nValor total com desconto aplicado: R$ {preco_final_avista:.2f}\n\nOPCAO 02 - PARCELAMENTO FACILITADO CORPORATIVO:\nPagamento em ate 10x mensais fixas de R$ {valor_parcela_10x:.2f}\nValor total final parcelado: R$ {preco_final_parcelado_com_taxa:.2f}")
+    pdf.ln(4)
+    
+    pdf.set_font("Helvetica", "B", 10.5)
+    pdf.cell(135, 7, "Garantia dos Servicos:", ln=True)
+    pdf.set_font("Helvetica", "", 10.5)
+    pdf.multi_cell(135, 7, f"{t_gar}")
+    pdf.ln(4)
+    
+    pdf.set_font("Helvetica", "B", 10.5)
+    pdf.cell(135, 7, "Observacoes Importantes:", ln=True)
+    pdf.set_font("Helvetica", "", 10.5)
+    pdf.multi_cell(135, 7, f"{t_obs}")
     
     try:
         qr_res = requests.get(URL_QRCODE, timeout=5)
@@ -409,7 +416,7 @@ with aba_orc_geral:
             pdf.set_y(y_condicoes + 39)
             pdf.set_x(158)
             pdf.set_font("Helvetica", "B", 8.5)
-            pdf.cell(38, 4, "Aprovar via WhatsApp", ln=True, align="C")
+            pdf.cell(38, 5, "Aprovar via WhatsApp", ln=True, align="C")
             if os.path.exists("temp_pdf_qr.png"):
                 os.remove("temp_pdf_qr.png")
     except Exception:
