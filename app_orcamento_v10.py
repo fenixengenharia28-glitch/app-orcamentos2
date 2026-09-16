@@ -1,54 +1,117 @@
 # ==============================================================================
-# BLOCO 1: IMPORTAÇÕES, CONFIGURAÇÃO DA PÁGINA E ESTADOS DE SESSÃO
+# BLOCO 1: IMPORTAÇÕES, CONFIGURAÇÃO DA PÁGINA, CONEXÃO GITHUB E MOTOR DO PDF
 # ==============================================================================
 import streamlit as st
 import pandas as pd
+import requests
+import base64
 import os
+from fpdf import FPDF
 
-# Configuração da página web para o modo amplo (wide)
+# Configuração da página web
 st.set_page_config(
-    page_title="Gestão Integrada de Orçamentos Elétricos", 
+    page_title="Gestão de Orçamentos Elétricos Integrada", 
     page_icon="⚡", 
     layout="wide"
 )
 
-# Função auxiliar para ler os arquivos de texto locais com segurança
-def ler_arquivo_txt(nome_arquivo, texto_padrao=""):
-    if os.path.exists(nome_arquivo):
-        with open(nome_arquivo, "r", encoding="utf-8") as f:
-            return f.read()
-    return texto_padrao
+WHATSAPP_NUMERO = "5531995392027"
+LINK_WHATSAPP = f"https://wa.me{WHATSAPP_NUMERO}"
+URL_QRCODE = f"https://googleapis.com{LINK_WHATSAPP}&choe=UTF-8"
 
-# Inicialização de tabelas na memória da sessão (evita perder dados ao mudar de aba)
-if 'clientes' not in st.session_state:
-    st.session_state.clientes = []
-if 'materiais' not in st.session_state:
-    st.session_state.materiais = []
-if 'veiculos' not in st.session_state:
-    st.session_state.veiculos = []
-if 'materiais_orcamento' not in st.session_state:
-    st.session_state.materiais_orcamento = []
+# ─── CLASSE DO PDF PERSONALIZADO COM SUPORTE A LOGO ───
+class PDFOrcamento(FPDF):
+    def __init__(self, logo_bytes=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.logo_bytes = logo_bytes
 
-# Título Principal do Painel
-st.title("⚡ Painel de Gestão e Orçamentos Elétricos")
-st.markdown("Gerencie seus clientes, materiais, frotas e crie orçamentos profissionais em um só lugar.")
+    def header(self):
+        if self.logo_bytes:
+            # Salva temporariamente os bytes da imagem carregada para injetar no PDF
+            with open("temp_logo.png", "wb") as f:
+                f.write(self.logo_bytes.getbuffer())
+            self.image("temp_logo.png", 10, 8, 33)
+            if os.path.exists("temp_logo.png"):
+                os.remove("temp_logo.png")
+        
+        self.set_font("Helvetica", "B", 14)
+        self.cell(40) # Espaçamento para não sobrepor a logo
+        self.cell(0, 10, "ORÇAMENTO DE SERVIÇOS ELÉTRICOS", ln=True, align="R")
+        self.set_draw_color(220, 220, 220)
+        self.line(10, 45, 200, 45)
+        self.ln(20)
 
-# Criação das Abas de Navegação
-aba_orcamento, aba_clientes, aba_mao_obra, aba_calc_hora, aba_materiais, aba_veiculos = st.tabs([
-    "📋 Criar Orçamento", 
-    "👥 Cadastro de Clientes", 
-    "⏱️ Precificação de Mão de Obra", 
-    "🧮 Calculadora de Hora Técnica", 
-    "🛒 Cadastro de Materiais", 
-    "🚚 Cadastro de Veículos"
+    def footer(self):
+        self.set_y(-25)
+        self.set_draw_color(220, 220, 220)
+        self.line(10, 270, 200, 270)
+        self.set_font("Helvetica", "I", 8)
+        self.cell(0, 10, f"Página {self.page_no()}/{{nb}}", align="C", ln=True)
+        self.cell(0, 5, "Gerado por Fênix Empreendimento - Contato: (31) 99539-2027", align="C")
+
+# ─── SCONECTIVIDADE DO BANCO DE DADOS GITHUB ───
+def salvar_no_github(nome_arquivo_csv, df_novo):
+    try:
+        token = st.secrets["GITHUB_TOKEN"]
+        repo = st.secrets["GITHUB_REPO"]
+    except Exception:
+        df_novo.to_csv(nome_arquivo_csv, index=False, encoding="utf-8")
+        return False
+
+    url = f"https://github.com{repo}/contents/{nome_arquivo_csv}"
+    headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
+    
+    sha = None
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        sha = response.json().get("sha")
+        conteudo_antigo_b64 = response.json().get("content")
+        conteudo_antigo = base64.b64decode(conteudo_antigo_b64).decode("utf-8")
+        from io import StringIO
+        df_antigo = pd.read_csv(StringIO(conteudo_antigo))
+        df_final = pd.concat([df_antigo, df_novo]).drop_duplicates().reset_index(drop=True)
+    else:
+        df_final = df_novo
+
+    csv_conteudo = df_final.to_csv(index=False, encoding="utf-8")
+    conteudo_b64 = base64.b64encode(csv_conteudo.encode("utf-8")).decode("utf-8")
+    
+    dados_commit = {"message": f"Atualizando base de dados: {nome_arquivo_csv}", "content": conteudo_b64}
+    if sha: dados_commit["sha"] = sha
+    requests.put(url, headers=headers, json=dados_commit)
+    df_final.to_csv(nome_arquivo_csv, index=False, encoding="utf-8")
+    return True
+
+def carregar_dados(nome_arquivo_csv):
+    if os.path.exists(nome_arquivo_csv):
+        return pd.read_csv(nome_arquivo_csv).to_dict(orient="records")
+    return []
+
+if 'clientes' not in st.session_state: st.session_state.clientes = carregar_dados("clientes.csv")
+if 'veiculos' not in st.session_state: st.session_state.veiculos = carregar_dados("veiculos.csv")
+if 'materiais' not in st.session_state: st.session_state.materiais = carregar_dados("materiais.csv")
+if 'servicos' not in st.session_state: st.session_state.servicos = carregar_dados("servicos.csv")
+if 'materiais_orcamento' not in st.session_state: st.session_state.materiais_orcamento = []
+
+# Cabeçalho visual da plataforma
+col_topo1, col_topo2 = st.columns()
+with col_topo1:
+    st.title("⚡ Painel de Gestão e Orçamentos Elétricos")
+    logo_upload = st.file_uploader("Upload da Logo da sua Empresa (PNG/JPG):", type=["png", "jpg", "jpeg"])
+    if logo_upload: st.image(logo_upload, width=200)
+with col_topo2:
+    st.image(URL_QRCODE, caption="Fale Conosco no WhatsApp")
+
+aba_orcamento, aba_clientes, aba_mao_obra, aba_materiais, aba_veiculos = st.tabs([
+    "📋 Criar Orçamento", "👥 Cadastro de Clientes", "⏱️ Mão de Obra & Serviços", "🛒 Cadastro de Materiais", "🚚 Cadastro de Veículos"
 ])
 # ==============================================================================
-# BLOCO 2: ABAS DE CADASTROS (CLIENTES, MATERIAIS E VEÍCULOS)
+# BLOCO 2: CADASTRO DE CLIENTES E VEÍCULOS COM ARQUIVAMENTO EM CSV
 # ==============================================================================
 
 # ABA - CADASTRO DE CLIENTES
 with aba_clientes:
-    st.subheader("👥 Gerenciamento e Cadastro de Clientes")
+    st.subheader("👥 Cadastro de Clientes e Sincronização GitHub")
     with st.form("form_cliente", clear_on_submit=True):
         col_c1, col_c2 = st.columns(2)
         with col_c1:
@@ -56,234 +119,232 @@ with aba_clientes:
             c_doc = st.text_input("CPF ou CNPJ:")
         with col_c2:
             c_contato = st.text_input("WhatsApp / Telefone:")
-            c_endereco = st.text_input("Endereço da Obra/Cliente:")
+            c_endereco = st.text_input("Endereço da Obra:")
         
-        btn_cliente = st.form_submit_button("💾 Salvar Cliente")
-        if btn_cliente and c_nome:
-            st.session_state.clientes.append({"Nome": c_nome, "Documento": c_doc, "Contato": c_contato, "Endereço": c_endereco})
-            st.success(f"Cliente '{c_nome}' cadastrado com sucesso!")
+        if st.form_submit_button("💾 Salvar Cliente no GitHub"):
+            if c_nome:
+                novo_df = pd.DataFrame([{"Nome": c_nome, "Documento": c_doc, "Contato": c_contato, "Endereço": c_endereco}])
+                salvar_no_github("clientes.csv", novo_df)
+                st.session_state.clientes = carregar_dados("clientes.csv")
+                st.success(f"Cliente '{c_nome}' salvo e sincronizado com o GitHub!")
 
     if st.session_state.clientes:
-        st.markdown("### Clientes Cadastrados")
         st.dataframe(pd.DataFrame(st.session_state.clientes), use_container_width=True)
-    else:
-        st.info("Nenhum cliente cadastrado ainda.")
+
+# ABA - CADASTRO DE VEÍCULOS
+with aba_veiculos:
+    st.subheader("🚚 Gestão de Veículos e Custos de Frota")
+    with st.form("form_veiculo", clear_on_submit=True):
+        col_v1, col_v2 = st.columns(2)
+        with col_v1:
+            v_modelo = st.text_input("Modelo do Veículo:")
+            v_placa = st.text_input("Placa do Veículo:")
+        with col_v2:
+            v_km = st.number_input("Custo estimado por Km rodado (R$):", min_value=0.0, value=1.20, step=0.10)
+            
+        if st.form_submit_button("💾 Salvar Veículo no GitHub"):
+            if v_modelo:
+                novo_df = pd.DataFrame([{"Modelo": v_modelo, "Placa": v_placa, "Custo/Km": v_km}])
+                salvar_no_github("veiculos.csv", novo_df)
+                st.session_state.veiculos = carregar_dados("veiculos.csv")
+                st.success(f"Veículo '{v_modelo}' cadastrado e atualizado na nuvem!")
+
+    if st.session_state.veiculos:
+        st.dataframe(pd.DataFrame(st.session_state.veiculos), use_container_width=True)
+# ==============================================================================
+# BLOCO 3: CADASTRO DE MATERIAIS E SERVIÇOS NO ALMOXARIFADO
+# ==============================================================================
 
 # ABA - CADASTRO DE MATERIAIS
 with aba_materiais:
-    st.subheader("🛒 Almoxarifado / Catálogo Geral de Materiais")
+    st.subheader("🛒 Catálogo Geral de Materiais e Insumos")
     with st.form("form_catalogo_material", clear_on_submit=True):
         col_m1, col_m2, col_m3 = st.columns(3)
         with col_m1:
-            mat_nome = st.text_input("Nome do Material (Ex: Cabo Flexível 6mm²):")
+            mat_nome = st.text_input("Nome do Material:")
         with col_m2:
             mat_marca = st.text_input("Marca / Fabricante:")
         with col_m3:
             mat_preco = st.number_input("Preço de Custo Padrão (R$):", min_value=0.0, value=0.0, step=5.0)
             
-        btn_material = st.form_submit_button("💾 Cadastrar Material no Estoque")
-        if btn_material and mat_nome:
-            st.session_state.materiais.append({"Item": mat_nome, "Marca": mat_marca, "Preço Unitário": mat_preco})
-            st.success(f"'{mat_nome}' adicionado ao catálogo geral!")
+        if st.form_submit_button("💾 Salvar Material no GitHub"):
+            if mat_nome:
+                novo_df = pd.DataFrame([{"Item": mat_nome, "Marca": mat_marca, "Preço Unitário": mat_preco}])
+                salvar_no_github("materiais.csv", novo_df)
+                st.session_state.materiais = carregar_dados("materiais.csv")
+                st.success(f"'{mat_nome}' adicionado ao inventário do GitHub!")
 
     if st.session_state.materiais:
-        st.markdown("### Materiais em Catálogo")
         st.dataframe(pd.DataFrame(st.session_state.materiais), use_container_width=True)
-    else:
-        st.info("Nenhum material no catálogo padrão.")
 
-# ABA - CADASTRO DE VEÍCULOS
-with aba_veiculos:
-    st.subheader("🚚 Gestão de Veículos / Frota de Atendimento")
-    with st.form("form_veiculo", clear_on_submit=True):
-        col_v1, col_v2 = st.columns(2)
-        with col_v1:
-            v_modelo = st.text_input("Modelo do Veículo (Ex: Fiorino, Strada):")
-            v_placa = st.text_input("Placa do Veículo:")
-        with col_v2:
-            v_km = st.number_input("Custo estimado por Km rodado (Combustível + Desgaste - R$):", min_value=0.0, value=1.20, step=0.10)
-            
-        btn_veiculo = st.form_submit_button("💾 Salvar Veículo")
-        if btn_veiculo and v_modelo:
-            st.session_state.veiculos.append({"Modelo": v_modelo, "Placa": v_placa, "Custo/Km": v_km})
-            st.success(f"Veículo '{v_modelo}' adicionado à frota!")
-
-    if st.session_state.veiculos:
-        st.markdown("### Veículos Disponíveis")
-        st.dataframe(pd.DataFrame(st.session_state.veiculos), use_container_width=True)
-    else:
-        st.info("Nenhum veículo cadastrado na frota.")
-# ==============================================================================
-# BLOCO 3: ABAS DE PRECIFICAÇÃO DE MÃO DE OBRA E CALCULADORA DE HORA TÉCNICA
-# ==============================================================================
-
-# ABA - PRECIFICAÇÃO DE MÃO DE OBRA
+# ABA - MÃO DE OBRA E TIPOS DE SERVIÇOS
 with aba_mao_obra:
-    st.subheader("🛠️ Modelos de Cobrança da Mão de Obra")
-    st.markdown("Configure aqui o valor que será puxado automaticamente para o orçamento final.")
-    
-    tipo_calculo_mo = st.radio("Selecione o modelo de precificação:", ["Por Hora Trabalhada", "Por Ponto Elétrico / Tarefa Fixa"])
-    
-    if tipo_calculo_mo == "Por Hora Trabalhada":
-        mo_valor_hora = st.number_input("Seu valor da hora técnica (R$):", min_value=0.0, value=80.0, step=5.0)
-        mo_horas_estimadas = st.number_input("Horas estimadas de trabalho na obra:", min_value=0.0, value=8.0, step=1.0)
-        total_mo_calculado = mo_valor_hora * mo_horas_estimadas
-        st.metric("Total Mão de Obra (Horas)", f"R$ {total_mo_calculado:.2f}")
-    else:
-        col_p1, col_p2 = st.columns(2)
-        with col_p1:
-            mo_valor_ponto = st.number_input("Valor cobrado por Ponto Elétrico (R$):", min_value=0.0, value=120.0, step=10.0)
-        with col_p2:
-            mo_qtd_pontos = st.number_input("Quantidade total de pontos na obra:", min_value=0.0, value=10.0, step=1.0)
-        total_mo_calculado = mo_valor_ponto * mo_qtd_pontos
-        st.metric("Total Mão de Obra (Pontos)", f"R$ {total_mo_calculado:.2f}")
+    st.subheader("🛠️ Tipos de Serviços e Precificação Base")
+    with st.form("form_tipo_servico", clear_on_submit=True):
+        col_ts1, col_ts2, col_ts3 = st.columns(3)
+        with col_ts1:
+            ts_nome = st.text_input("Nome do Serviço (Ex: Instalação de Padrão, Infraestrutura):")
+        with col_ts2:
+            ts_tipo = st.selectbox("Modelo de Cobrança Padrão:", ["Por Ponto Elétrico", "Por Hora Trabalhada", "Valor Fixo"])
+        with col_ts3:
+            ts_preco = st.number_input("Preço Base Referencial (R$):", min_value=0.0, value=100.0)
+            
+        if st.form_submit_button("💾 Salvar Tipo de Serviço no GitHub"):
+            if ts_nome:
+                novo_df = pd.DataFrame([{"Serviço": ts_nome, "Tipo Cobrança": ts_tipo, "Preço Base": ts_preco}])
+                salvar_no_github("servicos.csv", novo_df)
+                st.session_state.servicos = carregar_dados("servicos.csv")
+                st.success("Tipo de serviço salvo com sucesso!")
 
-# ABA - CALCULADORA DE HORA TÉCNICA
-with aba_calc_hora:
-    st.subheader("🧮 Calculadora de Custo de Hora Técnica")
-    st.markdown("Descubra quanto vale a sua hora com base nos seus custos mensais fixos.")
-    
-    col_ch1, col_ch2 = st.columns(2)
-    with col_ch1:
-        custo_fixo_pessoal = st.number_input("Custos fixos mensais (Aluguel, ferramentas, softwares, etc - R$):", min_value=0.0, value=1500.0, step=100.0)
-        salario_desejado = st.number_input("Sua meta de Pro-labore / Salário limpo (R$):", min_value=0.0, value=5000.0, step=500.0)
-    with col_ch2:
-        dias_trabalhados = st.number_input("Dias trabalhados por mês:", min_value=1, max_value=31, value=22)
-        horas_por_dia = st.number_input("Horas produtivas trabalhadas por dia:", min_value=1, max_value=24, value=6)
-        
-    total_horas_mes = dias_trabalhados * horas_por_dia
-    custo_total_operacao = custo_fixo_pessoal + salario_desejado
-    
-    if total_horas_mes > 0:
-        hora_tecnica_sugerida = custo_total_operacao / total_horas_mes
-        st.success(f"💡 Sua hora técnica mínima sugerida para cobrir custos e meta é de: **R$ {hora_tecnica_sugerida:.2f} / hora**")
-        st.info("Digite este valor obtido na aba 'Precificação de Mão de Obra' para utilizá-lo no orçamento final.")
+    if st.session_state.servicos:
+        st.dataframe(pd.DataFrame(st.session_state.servicos), use_container_width=True)
 # ==============================================================================
-# BLOCO 4: ABA DE CRIAÇÃO DO ORÇAMENTO, LOGÍSTICA E MONTAGEM DO DOCUMENTO FINAL
+# BLOCO 4: ORÇAMENTO COMPLETO, EXIBIÇÃO DE VALORES E DOWNLOAD DO PDF
 # ==============================================================================
 
-# ABA - EMISSÃO DO ORÇAMENTO FINAL
 with aba_orcamento:
-    st.subheader("📋 Montagem do Orçamento Integrado")
+    st.subheader("📋 Montagem do Orçamento Dinâmico")
     col_orc1, col_orc2 = st.columns(2)
     
     with col_orc1:
-        st.markdown("### 1. Vincular Informações")
+        st.markdown("### 1. Dados do Cliente e Logística")
         if st.session_state.clientes:
-            lista_nomes_clientes = [c["Nome"] for c in st.session_state.clientes]
-            cliente_selecionado = st.selectbox("Selecione o Cliente Cadastrado:", lista_nomes_clientes)
-            dados_cli = next(item for item in st.session_state.clientes if item["Nome"] == cliente_selecionado)
-            contato_display = dados_cli["Contato"]
-            endereco_display = dados_cli["Endereço"]
+            lista_cli = [c["Nome"] for c in st.session_state.clientes]
+            cli_sel = st.selectbox("Selecione o Cliente Cadastrado:", lista_cli)
+            dados_cli = next(item for item in st.session_state.clientes if item["Nome"] == cli_sel)
+            contato_disp, endereco_disp = dados_cli["Contato"], dados_cli["Endereço"]
         else:
-            cliente_selecionado = st.text_input("Nome do Cliente (Manual):")
-            contato_display = st.text_input("Contato (Manual):")
-            endereco_display = st.text_input("Endereço da Obra (Manual):")
+            cli_sel = st.text_input("Nome do Cliente (Manual):")
+            contato_disp = st.text_input("Contato (Manual):")
+            endereco_disp = st.text_input("Endereço da Obra (Manual):")
             
-        orc_descricao = st.text_area("Descreva detalhadamente o escopo técnico do serviço:")
-        
-        st.markdown("### 🚘 Logística de Deslocamento")
-        if st.session_state.veiculos:
-            lista_veiculos = [f"{v['Modelo']} ({v['Placa']})" for v in st.session_state.veiculos]
-            veiculo_sel = st.selectbox("Selecione o Veículo para o serviço:", lista_veiculos)
-            km_rodados = st.number_input("Distância total estimada de ida e volta (Km):", min_value=0.0, value=0.0)
-            idx_v = lista_veiculos.index(veiculo_sel)
-            custo_deslocamento = km_rodados * st.session_state.veiculos[idx_v]["Custo/Km"]
-            st.caption(f"Custo de transporte calculado: R$ {custo_deslocamento:.2f}")
+        if st.session_state.servicos:
+            lista_serv = [s["Serviço"] for s in st.session_state.servicos]
+            serv_sel = st.selectbox("Selecione o Tipo de Serviço Cadastrado:", lista_serv)
+            dados_serv = next(item for item in st.session_state.servicos if item["Serviço"] == serv_sel)
+            st.info(f"Modelo cadastrado: {dados_serv['Tipo Cobrança']} | Preço Ref: R$ {dados_serv['Preço Base']:.2f}")
         else:
-            custo_deslocamento = st.number_input("Custo de Deslocamento/Combustível Manual (R$):", min_value=0.0, value=0.0)
+            serv_sel = "Serviço Geral"
+
+        orc_descricao = st.text_area("Descreva o escopo detalhado que será executado nessa obra:")
+        mo_total_v = st.number_input("Valor Final definido para a Mão de Obra (R$):", min_value=0.0, value=500.0)
+
+        if st.session_state.veiculos:
+            lista_v = [f"{v['Modelo']} ({v['Placa']})" for v in st.session_state.veiculos]
+            v_sel = st.selectbox("Veículo de Atendimento:", lista_v)
+            km_r = st.number_input("KM Estimado (Ida + Volta):", min_value=0.0, value=0.0)
+            idx = lista_v.index(v_sel)
+            custo_transporte = km_r * st.session_state.veiculos[idx]["Custo/Km"]
+        else:
+            custo_transporte = st.number_input("Custo de Deslocamento Manual (R$):", min_value=0.0, value=0.0)
 
     with col_orc2:
-        st.markdown("### 2. Adicionar Materiais ao Orçamento")
+        st.markdown("### 2. Adicionar Materiais Específicos")
         if st.session_state.materiais:
-            lista_mat_nomes = [m["Item"] for m in st.session_state.materiais]
-            mat_escolhido = st.selectbox("Escolha um material do seu Catálogo:", lista_mat_nomes)
-            item_dados = next(item for item in st.session_state.materiais if item["Item"] == mat_escolhido)
-            preco_sugerido = item_dados["Preço Unitário"]
+            lista_m = [m["Item"] for m in st.session_state.materiais]
+            m_sel = st.selectbox("Buscar material do Catálogo:", lista_m)
+            dados_m = next(item for item in st.session_state.materiais if item["Item"] == m_sel)
+            p_sugerido = dados_m["Preço Unitário"]
         else:
-            mat_escolhido = st.text_input("Nome do Material:")
-            preco_sugerido = 0.0
+            m_sel = st.text_input("Nome do Material Manual:")
+            p_sugerido = 0.0
             
-        mat_qtd = st.number_input("Quantidade para esta obra:", min_value=1, value=1)
-        mat_custo_un = st.number_input("Preço de custo unitário praticado (R$):", min_value=0.0, value=preco_sugerido)
+        m_qtd = st.number_input("Qtd para a Obra:", min_value=1, value=1)
+        m_preco = st.number_input("Preço de Custo Praticado (R$):", min_value=0.0, value=p_sugerido)
         
-        if st.button("➕ Inserir Material no Orçamento"):
-            if mat_escolhido:
+        if st.button("➕ Inserir no Orçamento"):
+            if m_sel:
                 st.session_state.materiais_orcamento.append({
-                    "Material": mat_escolhido, "Qtd": mat_qtd, "Custo Un. (R$)": mat_custo_un, "Total (R$)": mat_qtd * mat_custo_un
+                    "Material": m_sel, "Qtd": m_qtd, "Custo Un. (R$)": m_preco, "Total (R$)": m_qtd * m_preco
                 })
                 st.rerun()
 
-        custo_bruto_materiais_obra = 0.0
+        custo_bruto_m = 0.0
         if st.session_state.materiais_orcamento:
-            df_mat_obra = pd.DataFrame(st.session_state.materiais_orcamento)
-            st.dataframe(df_mat_obra, use_container_width=True)
-            custo_bruto_materiais_obra = df_mat_obra["Total (R$)"].sum()
+            df_m_obra = pd.DataFrame(st.session_state.materiais_orcamento)
+            st.dataframe(df_m_obra, use_container_width=True)
+            custo_bruto_m = df_m_obra["Total (R$)"].sum()
             if st.button("🗑️ Limpar Lista de Materiais da Obra"):
                 st.session_state.materiais_orcamento = []
                 st.rerun()
 
     st.markdown("---")
-    st.markdown("### 3. Fechamento de Margens, Impostos e Termos")
     col_f1, col_f2, col_f3 = st.columns(3)
     with col_f1:
-        orc_margem_mat = st.number_input("Margem aplicada sobre os materiais (%):", min_value=0.0, value=20.0)
-        total_materiais_reajustado = custo_bruto_materiais_obra * (1 + (orc_margem_mat / 100))
+        margem_m = st.number_input("Margem sobre materiais (%):", min_value=0.0, value=20.0)
+        total_m_lucro = custo_bruto_m * (1 + (margem_m / 100))
     with col_f2:
-        orc_imposto = st.number_input("Impostos Incidentes (%):", min_value=0.0, value=6.0)
+        imposto_pc = st.number_input("Impostos / NF (%):", min_value=0.0, value=6.0)
     with col_f3:
-        orc_desconto = st.number_input("Desconto comercial (R$):", min_value=0.0, value=0.0)
+        desc_v = st.number_input("Desconto Especial (R$):", min_value=0.0, value=0.0)
 
-    subtotal_valores = total_mo_calculado + total_materiais_reajustado + custo_deslocamento
-    calculo_impostos_finais = subtotal_valores * (orc_imposto / 100)
-    preco_final_geral = subtotal_valores + calculo_impostos_finais - orc_desconto
+    subtotal = mo_total_v + total_m_lucro + custo_transporte
+    impostos_finais = subtotal * (imposto_pc / 100)
+    preco_final = subtotal + impostos_finais - desc_v
 
-    txt_pag = ler_arquivo_txt("pagamento.txt", "Conforme acordado entre as partes.")
-    txt_gar = ler_arquivo_txt("garantia.txt", "Garantia legal de 90 dias.")
-    txt_obs = ler_arquivo_txt("observacoes.txt", "Não inclui serviços de alvenaria e pintura.")
+    def ler_arquivo_txt(n, d): return open(n, "r", encoding="utf-8").read() if os.path.exists(n) else d
+    t_pag = ler_arquivo_txt("pagamento.txt", "A combinar.")
+    t_gar = ler_arquivo_txt("garantia.txt", "90 dias.")
+    t_obs = ler_arquivo_txt("observacoes.txt", "Sem alteração estrutural.")
 
-    st.markdown("### 📊 Resumo Executivo")
-    res_m1, res_m2, res_m3, res_m4, res_m5 = st.columns(5)
-    res_m1.metric("Mão de Obra", f"R$ {total_mo_calculado:.2f}")
-    res_m2.metric("Materiais", f"R$ {total_materiais_reajustado:.2f}")
-    res_m3.metric("Logística/Deslocamento", f"R$ {custo_deslocamento:.2f}")
-    res_m4.metric("Impostos", f"R$ {calculo_impostos_finais:.2f}")
-    res_m5.metric("PREÇO FINAL", f"R$ {preco_final_geral:.2f}", delta=f"- R$ {orc_desconto:.2f}" if orc_desconto > 0 else None)
+    st.markdown("### 📊 Resumo de Fechamento")
+    rm1, rm2, rm3, rm4, rm5 = st.columns(5)
+    rm1.metric("Mão de Obra", f"R$ {mo_total_v:.2f}")
+    rm2.metric("Materiais", f"R$ {total_m_lucro:.2f}")
+    rm3.metric("Logística", f"R$ {custo_transporte:.2f}")
+    rm4.metric("Impostos", f"R$ {impostos_finais:.2f}")
+    rm5.metric("PREÇO FINAL", f"R$ {preco_final:.2f}", delta=f"- R$ {desc_v:.2f}" if desc_v > 0 else None)
 
-    texto_final_whatsapp = f"""==================================================
-        ORÇAMENTO DE SERVIÇOS ELÉTRICOS
-==================================================
-CLIENTE: {cliente_selecionado if cliente_selecionado else 'Não Informado'}
-CONTATO: {contato_display if contato_display else 'Não Informado'}
-ENDEREÇO DA OBRA: {endereco_display if endereco_display else 'Não Informado'}
+    # ─── CONVERSOR DO DOCUMENTO TÉCNICO PARA PDF ───
+    pdf = PDFOrcamento(logo_bytes=logo_upload)
+    pdf.add_page()
+    pdf.set_font("Helvetica", "", 11)
+    
+    # Seção Cliente
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 8, "DADOS DO CLIENTE", ln=True)
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(0, 6, f"Cliente: {cli_sel}", ln=True)
+    pdf.cell(0, 6, f"Contato: {contato_disp}", ln=True)
+    pdf.cell(0, 6, f"Endereço da Obra: {endereco_disp}", ln=True)
+    pdf.ln(5)
 
-ESCOPO TÉCNICO DOS SERVIÇOS:
-{orc_descricao if orc_descricao else 'Conforme especificações técnicas alinhadas previamente.'}
+    # Seção Escopo
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 8, f"SERVIÇO PRINCIPAL: {serv_sel}", ln=True)
+    pdf.set_font("Helvetica", "", 10)
+    pdf.multi_cell(0, 6, f"Escopo Tecnico:\n{orc_descricao if orc_descricao else 'Conforme especificações.'}")
+    pdf.ln(5)
 
-DETALHAMENTO DE VALORES:
-- Mão de Obra Técnica Especializada: R$ {total_mo_calculado:.2f}
-- Fornecimento de Materiais e Insumos: R$ {total_materiais_reajustado:.2f}
-- Despesas com Transporte/Logística: R$ {custo_deslocamento:.2f}
-- Impostos e Encargos Inclusos: R$ {calculo_impostos_finais:.2f}
-"""
-    if orc_desconto > 0:
-        texto_final_whatsapp += f"- Desconto Especial Concedido: - R$ {orc_desconto:.2f}\n"
-        
-    texto_final_whatsapp += f"""--------------------------------------------------
-VALOR TOTAL DO INVESTIMENTO: R$ {preco_final_geral:.2f}
-==================================================
-CONDIÇÕES COMERCIAIS:
+    # Valores
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 8, "RESUMO FINANCEIRO DO INVESTIMENTO", ln=True)
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(0, 6, f"- Mao de Obra Especializada: R$ {mo_total_v:.2f}", ln=True)
+    pdf.cell(0, 6, f"- Fornecimento de Materiais/Insumos: R$ {total_m_lucro:.2f}", ln=True)
+    pdf.cell(0, 6, f"- Custos de Deslocamento/Logistica: R$ {custo_transporte:.2f}", ln=True)
+    pdf.cell(0, 6, f"- Encargos e Impostos Inclusos: R$ {impostos_finais:.2f}", ln=True)
+    if desc_v > 0: pdf.cell(0, 6, f"- Desconto Especial: - R$ {desc_v:.2f}", ln=True)
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 8, f"VALOR TOTAL DO ORÇAMENTO: R$ {preco_final:.2f}", ln=True)
+    pdf.ln(5)
 
-Formas de Pagamento:
-{txt_pag}
+    # Termos Comerciais (.txt)
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 8, "CONDIÇÕES COMERCIAIS", ln=True)
+    pdf.set_font("Helvetica", "", 10)
+    pdf.multi_cell(0, 5, f"Formas de Pagamento:\n{t_pag}\n\nGarantia:\n{t_gar}\n\nObservacoes:\n{t_obs}")
+    
+    pdf_output = pdf.output()
 
-Garantia dos Serviços:
-{txt_gar}
-
-Observações Importantes:
-{txt_obs}
-==================================================
-Validade deste orçamento: 15 dias a partir desta emissão.
-"""
-    st.markdown("#### 🖨️ Documento Prontinho para Cópia (WhatsApp/E-mail)")
-    st.text_area("Copie o texto estruturado abaixo:", value=texto_final_whatsapp, height=450)
+    st.markdown("### 🖨️ Ações de Envio")
+    col_d1, col_d2 = st.columns(2)
+    with col_d1:
+        st.download_button(
+            label="📥 Baixar Orçamento Oficial em PDF",
+            data=bytes(pdf_output),
+            file_name=f"Orcamento_{cli_sel.replace(' ', '_')}.pdf",
+            mime="application/pdf"
+        )
+    with col_d2:
+        st.link_button("💬 Enviar via WhatsApp", LINK_WHATSAPP)
