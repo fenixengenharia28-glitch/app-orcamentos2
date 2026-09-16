@@ -20,14 +20,13 @@ WHATSAPP_NUMERO = "5531995392027"
 LINK_WHATSAPP = f"https://wa.me{WHATSAPP_NUMERO}"
 URL_QRCODE = f"https://googleapis.com{LINK_WHATSAPP}&choe=UTF-8"
 
-# ─── CLASSE DO PDF COM DESIGN DE CABEÇALHO EM TRÊS SEÇÕES EM DESTAQUE ───
+# ─── CLASSE DO PDF COM DESIGN DE CABEÇALHO EM TRÊS SEÇÕES ───
 class PDFOrcamento(FPDF):
     def __init__(self, logo_bytes=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.logo_bytes = logo_bytes
 
     def header(self):
-        # 1. LOGO NO CANTO ESQUERDO
         if self.logo_bytes:
             with open("temp_logo.png", "wb") as f:
                 f.write(self.logo_bytes)
@@ -37,22 +36,18 @@ class PDFOrcamento(FPDF):
         
         self.set_y(10)
         
-        # 2. DADOS DA EMPRESA CENTRALIZADOS COM NOME EM DESTAQUE E SALTO DE LINHAS
-        self.set_font("Helvetica", "B", 12)  # Nome da Empresa em Destaque (Maior e Negrito)
+        self.set_font("Helvetica", "B", 12)  # Nome da Empresa em Destaque
         self.cell(0, 5, "Fenix Engenharia e Comercio LTDA", ln=True, align="C")
         
         self.set_font("Helvetica", "", 8.5)
         self.cell(0, 4.5, "CNPJ: 52.769.953/0001-12", ln=True, align="C")
         self.cell(0, 4.5, "Avenida Getulio Vargas, nº 671, 9º Andar, Sala 1051, Bairro Savassi, Belo Horizonte - MG, Cep: 30112-021", ln=True, align="C")
         
-        # Salto de duas linhas (gap estrutural de aproximadamente 8mm)
-        self.ln(8)
+        self.ln(8)  # Salto de duas linhas
         
-        # Informação técnica posicionada abaixo do endereço com o espaçamento solicitado
         self.set_font("Helvetica", "B", 10.5)
         self.cell(0, 5, "PRESTAÇÃO DE SERVIÇOS ELÉTRICOS E ENGENHARIA", ln=True, align="C")
         
-        # 3. WHATSAPP NO CANTO DIREITO 
         self.set_y(10)
         self.set_font("Helvetica", "B", 10)
         self.set_x(155)
@@ -61,7 +56,6 @@ class PDFOrcamento(FPDF):
         self.set_font("Helvetica", "", 10)
         self.cell(45, 4, "(31) 99539-2027", ln=True, align="R")
         
-        # Linha divisória cinza reposicionada de acordo com o novo tamanho do cabeçalho
         self.set_draw_color(200, 200, 200)
         self.set_line_width(0.3)
         self.line(10, 42, 200, 42)
@@ -75,7 +69,7 @@ class PDFOrcamento(FPDF):
         self.cell(0, 10, f"Página {self.page_no()}/{{nb}}", align="C", ln=True)
         self.cell(0, 5, "Fenix Engenharia e Comercio LTDA - Contato: (31) 99539-2027", align="C")
 # ==============================================================================
-# BLOCO 2: CONECTIVIDADE COM REPOSITÓRIO GITHUB E BANCO DE DATASETS
+# BLOCO 2: CONECTIVIDADE COM REPOSITÓRIO GITHUB E NORMALIZAÇÃO DE DADOS
 # ==============================================================================
 def salvar_no_github(nome_arquivo_csv, df_novo, sobrescrever=False):
     try:
@@ -100,8 +94,16 @@ def salvar_no_github(nome_arquivo_csv, df_novo, sobrescrever=False):
                 from io import StringIO
                 df_antigo = pd.read_csv(StringIO(conteudo_antigo))
                 
+                # Sincronização estrutural de arquivos antigos de serviços
                 if nome_arquivo_csv == "servicos.csv" and "Serviço" in df_antigo.columns:
                     df_antigo = df_antigo.rename(columns={"Serviço": "Descrição", "Preço Base": "Valor Compra Un. (R$)"})
+                
+                # Sincronização estrutural de arquivos antigos de veículos
+                if nome_arquivo_csv == "veiculos.csv":
+                    if "Consumo Médio (Km/Litro)" in df_antigo.columns:
+                        df_antigo = df_antigo.rename(columns={"Consumo Médio (Km/Litro)": "Consumo (Km/L)"})
+                    if "Custo/Km" in df_antigo.columns:
+                        df_antigo = df_antigo.drop(columns=["Custo/Km"])
                 
                 for col in df_novo.columns:
                     if col not in df_antigo.columns: df_antigo[col] = None
@@ -138,6 +140,11 @@ def carregar_dados(nome_arquivo_csv):
             df = pd.read_csv(nome_arquivo_csv)
             if nome_arquivo_csv == "servicos.csv" and "Serviço" in df.columns:
                 df = df.rename(columns={"Serviço": "Descrição", "Preço Base": "Valor Compra Un. (R$)"})
+            if nome_arquivo_csv == "veiculos.csv":
+                if "Consumo Médio (Km/Litro)" in df.columns:
+                    df = df.rename(columns={"Consumo Médio (Km/Litro)": "Consumo (Km/L)"})
+                if "Custo/Km" in df.columns:
+                    df = df.drop(columns=["Custo/Km"])
             return df.to_dict(orient="records")
         except Exception:
             return []
@@ -160,7 +167,7 @@ def carregar_logo_persistida():
         with open("logo_local.png", "rb") as f: return f.read()
     return None
 
-# Inicialização de estados
+# Inicialização de estados síncronos
 if 'clientes' not in st.session_state: st.session_state.clientes = carregar_dados("clientes.csv")
 if 'veiculos' not in st.session_state: st.session_state.veiculos = carregar_dados("veiculos.csv")
 if 'materiais' not in st.session_state: st.session_state.materiais = carregar_dados("materiais.csv")
@@ -187,7 +194,7 @@ aba_orc_ponto, aba_calc_preco, aba_clientes, aba_mao_obra, aba_materiais, aba_ve
     "📍 Orçamento por Ponto", "📊 Cálculo de Preço", "👥 Cadastro de Clientes", "⏱️ Mão de Obra & Serviços", "🛒 Cadastro de Materiais", "🚚 Cadastro de Veículos"
 ])
 # ==============================================================================
-# BLOCO 3: CADASTRO DE CLIENTES E NOVA ABA DE FROTA SIMPLIFICADA COM CALCULADORA
+# BLOCO 3: CADASTRO DE CLIENTES AND MÓDULO DE FROTA BLINDADO COM EXTRAÇÃO ILOC
 # ==============================================================================
 
 # ABA - CADASTRO DE CLIENTES
@@ -214,7 +221,7 @@ with aba_clientes:
         df_cli = pd.DataFrame(st.session_state.clientes)
         st.dataframe(df_cli, use_container_width=True)
 
-# ABA - GESTÃO DE VEÍCULOS SIMPLIFICADA
+# ABA - GESTÃO DE VEÍCULOS COM BLINDAGEM CONTRA TYPEERROR
 with aba_veiculos:
     st.subheader("🚚 Cadastro de Veículos e Calculadora de Combustível")
     col_v_esq, col_v_dir = st.columns(2)
@@ -248,7 +255,8 @@ with aba_veiculos:
             km_servico = st.number_input("Quilômetros totais estimados (Ida + Volta):", min_value=0.0, value=50.0)
             preco_litro = st.number_input("Preço atual do litro (R$):", min_value=0.0, value=5.90, step=0.10)
             
-            consumo_carro = float(df_veic_calc[df_veic_calc["Placa"] == veic_sel_calc]["Consumo (Km/L)"].values)
+            # CORREÇÃO CRUCIAL DA LINHA 251: Extração blindada com .iloc[0] convertida com segurança
+            consumo_carro = float(df_veic_calc[df_veic_calc["Placa"] == veic_sel_calc]["Consumo (Km/L)"].iloc[0])
             custo_combustivel_calculado = (km_servico / consumo_carro) * preco_litro
             st.metric("Custo Estimado de Combustível", f"R$ {custo_combustivel_calculado:.2f}")
         else:
@@ -312,7 +320,7 @@ with aba_mao_obra:
         df_serv = pd.DataFrame(st.session_state.servicos)
         st.dataframe(df_serv, use_container_width=True)
 # ==============================================================================
-# BLOCO 5: CÁLCULOS ANALÍTICOS, LOGÍSTICA SIMPLIFICADA E GERAÇÃO FINAL DO PDF
+# BLOCO 5: CÁLCULOS ANALÍTICOS, LOGÍSTICA COMPLETA E GERAÇÃO FINAL DO PDF
 # ==============================================================================
 
 def ler_arquivo_txt(n, d): return open(n, "r", encoding="utf-8").read() if os.path.exists(n) else d
@@ -374,6 +382,7 @@ with aba_orc_ponto:
             preco_combustivel = st.number_input("Preço do Combustível (R$/L):", min_value=0.0, value=5.90, key="prc_comb_p")
             
             idx = lista_v.index(v_sel)
+            # Extração blindada com .iloc[0] também no fechamento do orçamento
             cons_carro = float(df_v_orc.iloc[idx]["Consumo (Km/L)"])
             custo_transporte = (km_r / cons_carro) * preco_combustivel
             st.caption(f"Custo de Combustível Calculado: R$ {custo_transporte:.2f}")
