@@ -273,25 +273,34 @@ with aba_orc_geral:
             custo_transporte = (km_r / cons_carro) * preco_combustivel
             depreciacao_veiculo_proporcional = (dep_anual / 365)
 # ==============================================================================
-# BLOCO 8: ENGENHARIA FINANCEIRA - REMOÇÃO CRUCIAL DA SINTAXE INVÁLIDA (FIXED)
+# BLOCO 8: NOVO MOTOR FINANCEIRO - DILUIÇÃO IGUALITÁRIA DE CUSTOS DE LOGÍSTICA
 # ==============================================================================
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
         desconto_comercial_pc = st.number_input("Desconto Comercial Concedido (%):", min_value=0.0, value=0.0, step=1.0)
-        # CORREÇÃO DEFINITIVA DA LINHA 282: Limpeza de toda e qualquer string corrompida de outro alfabeto
         desconto_avista_pc = st.number_input("Desconto Adicional para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
 
-    # Processamento analítico unificado de custos
+    # Processamento analítico amplo
     custo_bruto_materiais = sum([item["Total"] for item in st.session_state.materiais_orcamento])
-    custo_total_servicos_normais = sum([item["Total"] for item in st.session_state.servicos_orcamento if not item["Bônus"]])
-    valor_total_bonus_exibicao = sum([item["Total"] for item in st.session_state.servicos_orcamento if item["Bônus"]])
     
+    # REQUISITO: O cálculo do imposto e custos logísticos incide sobre a somatória total bruta (Regular + Bônus)
+    custo_bruto_servicos_total = sum([item["Total"] for item in st.session_state.servicos_orcamento])
+    
+    # Agrega todos os fatores automotivos e despesas reais de deslocamento
     total_custos_frota_diluiveis = custo_transporte + depreciacao_veiculo_proporcional + margem_manutencao_veiculo
-    valor_imposto_real = (custo_total_servicos_normais + custo_bruto_materiais + custo_transporte) * (imposto_pc / 100)
+    valor_imposto_real = (custo_bruto_servicos_total + custo_bruto_materiais + custo_transporte) * (imposto_pc / 100)
     
-    # Injeta a somatória automobilística e fiscal na mão de obra
-    custo_final_servicos_com_imposto = custo_total_servicos_normais + valor_imposto_real + total_custos_frota_diluiveis
+    # Descobre o valor final que a Mão de Obra total possui (já unificada com todos os encargos embutidos)
+    total_mao_obra_com_encargos = custo_bruto_servicos_total + valor_imposto_real + total_custos_frota_diluiveis
     
+    # REQUISITO: Descobre o fator proporcional unificado para espalhar os custos em todas as linhas igualmente
+    fator_proporcional = total_mao_obra_com_encargos / custo_bruto_servicos_total if custo_bruto_servicos_total > 0 else 1.0
+    
+    # Mapeamento do valor final correspondente às categorias separadas por flag
+    custo_final_servicos_com_imposto = sum([item["Total"] for item in st.session_state.servicos_orcamento if not item["Bônus"]]) * fator_proporcional
+    valor_total_bonus_exibicao = sum([item["Total"] for item in st.session_state.servicos_orcamento if item["Bônus"]]) * fator_proporcional
+    
+    # PREÇO CHEIO ORIGINAL DO PROJETO: Mão de Obra Normal + Materiais (Bônus não entra no custo cobrado)
     subtotal_fechamento_real = custo_final_servicos_com_imposto + custo_bruto_materiais
     valor_desconto_dinheiro = subtotal_fechamento_real * (desconto_comercial_pc / 100)
     
@@ -305,17 +314,17 @@ with aba_orc_geral:
     st.markdown("---")
     st.markdown("### 📊 Painel Geral de Resumo")
     rm1, rm2, rm3 = st.columns(3)
-    rm1.metric("Mão de Obra (Custos Diluídos)", f"R$ {custo_final_servicos_com_imposto:.2f}")
+    rm1.metric("Mão de Obra Regulamentar", f"R$ {custo_final_servicos_com_imposto:.2f}")
     rm2.metric("Materiais Coletados", f"R$ {custo_bruto_materiais:.2f}")
     rm3.metric("VALOR TOTAL FINAL COBRADO", f"R$ {preco_final_cheio:.2f}", delta=f"- R$ {valor_desconto_dinheiro:.2f}" if valor_desconto_dinheiro > 0 else None)
 # ==============================================================================
-# BLOCO 9: DESIGN DO PDF A4 - COMPOSIÇÃO FINANCEIRA COM OS 5 VALORES DETALHADOS
+# BLOCO 9: DESIGN DO PDF A4 - COMPOSIÇÃO FINANCEIRA DOS 5 VALORES COM DILUIÇÃO
 # ==============================================================================
     pdf = PDFOrcamento(logo_bytes=st.session_state.logo_bytes)
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     
-    # Seção Dados do Cliente
+    # Dados do Cliente
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "DADOS DO CLIENTE E LOCALIDADE", ln=True)
     pdf.set_font("Helvetica", "", 11)
@@ -325,27 +334,28 @@ with aba_orc_geral:
     pdf.cell(0, 8, f"Endereco da Execucao: {endereco_disp}", ln=True)
     pdf.ln(8)
 
-    # Escopo Descritivo
+    # Escopo Técnico
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "ESCOPO TÉCNICO DA PROPOSTA", ln=True)
     pdf.set_font("Helvetica", "", 11)
     pdf.multi_cell(0, 8.5, f"{orc_descricao if orc_descricao else 'Execucao conforme escopo acordado.'}")
     pdf.ln(8)
 
-    # Listagem nominal de itens sem planilhas
+    # Detalhes nominais sem planilhas
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "DETALHAMENTO NOMINAL DOS ITENS DO PROJETO", ln=True)
     
+    # Grupo exclusivo de Mão de Obra Contratada normal
     pdf.set_font("Helvetica", "B", 11)
     pdf.cell(0, 8, "SERVIÇOS DE MÃO DE OBRA CONTRATADOS:", ln=True)
     pdf.set_font("Helvetica", "", 11)
-    
-    fator_proporcional = custo_final_servicos_com_imposto / custo_total_servicos_normais if custo_total_servicos_normais > 0 else 1.0
     for serv in st.session_state.servicos_orcamento:
         if not serv["Bônus"]:
+            # Aplica o fator de diluição unificado da Fenix
             valor_serv_com_todos_custos = serv["Total"] * fator_proporcional
             pdf.cell(0, 8, f"-> Mao de Obra para: {serv['Descrição']} | Qtd: {serv['Quantidade']} | Investimento: R$ {valor_serv_com_todos_custos:.2f}", ln=True)
     
+    # REQUISITO: Grupo exclusivo separado para Bônus seguindo a mesma diretriz de diluição de custos
     pdf.ln(4)
     pdf.set_font("Helvetica", "B", 11)
     pdf.cell(0, 8, "ATIVIDADES CONCEDIDAS COMO BÔNUS (CORTESIA):", ln=True)
@@ -353,10 +363,13 @@ with aba_orc_geral:
     if valor_total_bonus_exibicao > 0:
         for serv in st.session_state.servicos_orcamento:
             if serv["Bônus"]:
-                pdf.cell(0, 8, f"-> Bonus para: {serv['Descrição']} | Qtd: {serv['Quantidade']} | Valor Estimado: R$ {serv['Total']:.2f} -> INCLUSO COMO CORTESIA", ln=True)
+                # Exibe o valor final inflado com logística e impostos embutidos
+                valor_bonus_inflado_linha = serv["Total"] * fator_proporcional
+                pdf.cell(0, 8, f"-> Bonus para: {serv['Descrição']} | Qtd: {serv['Quantidade']} | Valor Real com Diluicao: R$ {valor_bonus_inflado_linha:.2f} -> INCLUSO COMO CORTESIA", ln=True)
     else:
         pdf.cell(0, 8, "Nenhuma atividade de bonus registrada para este projeto.", ln=True)
     
+    # Grupo de Insumos
     pdf.ln(4)
     pdf.set_font("Helvetica", "B", 11)
     pdf.cell(0, 8, "MATERIAIS E INSUMOS COMPLEMENTARES:", ln=True)
@@ -366,7 +379,7 @@ with aba_orc_geral:
     
     pdf.ln(8)
     
-    # Composição com as 5 categorias estruturadas
+    # Tabela de Composição Financeira atualizada com os 5 valores limpos
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "COMPOSIÇÃO FINANCEIRA DO PROJETO", ln=True)
     pdf.set_font("Helvetica", "", 11)
