@@ -1,5 +1,5 @@
 # ==============================================================================
-# BLOCO 1: IMPORTAÇÕES, ENGINE DO GITHUB, MOTOR PDF E ESTRUTURA DE ABAS
+# BLOCO 1: IMPORTAÇÕES, ENGINE DO GITHUB, MOTOR PDF E SALVAMENTO DE LOGO
 # ==============================================================================
 import streamlit as st
 import pandas as pd
@@ -7,6 +7,7 @@ import requests
 import base64
 import os
 from fpdf import FPDF
+from io import BytesIO
 
 # Configuração da página web
 st.set_page_config(
@@ -28,7 +29,7 @@ class PDFOrcamento(FPDF):
     def header(self):
         if self.logo_bytes:
             with open("temp_logo.png", "wb") as f:
-                f.write(self.logo_bytes.getbuffer())
+                f.write(self.logo_bytes)
             self.image("temp_logo.png", 10, 8, 33)
             if os.path.exists("temp_logo.png"):
                 os.remove("temp_logo.png")
@@ -54,7 +55,8 @@ def salvar_no_github(nome_arquivo_csv, df_novo, sobrescrever=False):
         token = st.secrets["GITHUB_TOKEN"].strip()
         repo = st.secrets["GITHUB_REPO"].strip()
     except Exception:
-        df_novo.to_csv(nome_arquivo_csv, index=False, encoding="utf-8")
+        if isinstance(df_novo, pd.DataFrame):
+            df_novo.to_csv(nome_arquivo_csv, index=False, encoding="utf-8")
         return False
 
     url = f"https://github.com{repo}/contents/{nome_arquivo_csv}"
@@ -65,7 +67,7 @@ def salvar_no_github(nome_arquivo_csv, df_novo, sobrescrever=False):
         response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
             sha = response.json().get("sha")
-            if not sobrescrever:
+            if not sobrescrever and isinstance(df_novo, pd.DataFrame):
                 conteudo_antigo_b64 = response.json().get("content")
                 conteudo_antigo = base64.b64decode(conteudo_antigo_b64).decode("utf-8")
                 from io import StringIO
@@ -76,19 +78,23 @@ def salvar_no_github(nome_arquivo_csv, df_novo, sobrescrever=False):
         else:
             df_final = df_novo
 
-        csv_conteudo = df_final.to_csv(index=False, encoding="utf-8")
-        conteudo_b64 = base64.b64encode(csv_conteudo.encode("utf-8")).decode("utf-8")
-        
-        dados_commit = {"message": f"Atualizando base de dados: {nome_arquivo_csv}", "content": conteudo_b64}
+        if isinstance(df_final, pd.DataFrame):
+            conteudo_final = df_final.to_csv(index=False, encoding="utf-8")
+            conteudo_b64 = base64.b64encode(conteudo_final.encode("utf-8")).decode("utf-8")
+        else:
+            conteudo_b64 = df_final # Caso já receba a string em base64 da logo
+
+        dados_commit = {"message": f"Atualizando arquivo: {nome_arquivo_csv}", "content": conteudo_b64}
         if sha: dados_commit["sha"] = sha
         
         requests.put(url, headers=headers, json=dados_commit, timeout=10)
-        df_final.to_csv(nome_arquivo_csv, index=False, encoding="utf-8")
+        if isinstance(df_final, pd.DataFrame):
+            df_final.to_csv(nome_arquivo_csv, index=False, encoding="utf-8")
         return True
         
     except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
-        df_novo.to_csv(nome_arquivo_csv, index=False, encoding="utf-8")
-        st.warning("⚠️ Dados salvos localmente. A sincronização com o GitHub falhou temporariamente.")
+        if isinstance(df_novo, pd.DataFrame):
+            df_novo.to_csv(nome_arquivo_csv, index=False, encoding="utf-8")
         return False
 
 def carregar_dados(nome_arquivo_csv):
@@ -99,22 +105,51 @@ def carregar_dados(nome_arquivo_csv):
             return []
     return []
 
+def carregar_logo_persistida():
+    try:
+        token = st.secrets["GITHUB_TOKEN"].strip()
+        repo = st.secrets["GITHUB_REPO"].strip()
+        url = f"https://github.com{repo}/contents/logo_persistida.txt"
+        headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
+        res = requests.get(url, headers=headers, timeout=5)
+        if res.status_code == 200:
+            b64_content = res.json().get("content")
+            txt_content = base64.b64decode(b64_content).decode("utf-8")
+            return base64.b64decode(txt_content)
+    except Exception:
+        pass
+    if os.path.exists("logo_local.png"):
+        with open("logo_local.png", "rb") as f:
+            return f.read()
+    return None
+
 # Inicialização de estados
 if 'clientes' not in st.session_state: st.session_state.clientes = carregar_dados("clientes.csv")
 if 'veiculos' not in st.session_state: st.session_state.veiculos = carregar_dados("veiculos.csv")
 if 'materiais' not in st.session_state: st.session_state.materiais = carregar_dados("materiais.csv")
 if 'servicos' not in st.session_state: st.session_state.servicos = carregar_dados("servicos.csv")
 if 'materiais_orcamento' not in st.session_state: st.session_state.materiais_orcamento = []
+if 'logo_bytes' not in st.session_state: st.session_state.logo_bytes = carregar_logo_persistida()
 
 col_topo1, col_topo2 = st.columns(2)
 with col_topo1:
     st.title("⚡ Painel de Gestão e Orçamentos Elétricos")
-    logo_upload = st.file_uploader("Upload da Logo da sua Empresa (PNG/JPG):", type=["png", "jpg", "jpeg"])
-    if logo_upload: st.image(logo_upload, width=200)
+    logo_upload = st.file_uploader("Upload e Salvamento da Logo da Empresa (PNG/JPG):", type=["png", "jpg", "jpeg"])
+    
+    if logo_upload:
+        bytes_da_logo = logo_upload.getvalue()
+        st.session_state.logo_bytes = bytes_da_logo
+        with open("logo_local.png", "wb") as f:
+            f.write(bytes_da_logo)
+        logo_b64_string = base64.b64encode(bytes_da_logo).decode("utf-8")
+        salvar_no_github("logo_persistida.txt", logo_b64_string, sobrescrever=True)
+        st.success("Logo salva permanentemente no sistema e no GitHub!")
+    
+    if st.session_state.logo_bytes:
+        st.image(st.session_state.logo_bytes, width=200)
 with col_topo2:
     st.image(URL_QRCODE, caption="Fale Conosco no WhatsApp")
 
-# Criação das Novas Abas Organizadas
 aba_orc_ponto, aba_calc_preco, aba_clientes, aba_mao_obra, aba_materiais, aba_veiculos = st.tabs([
     "📍 Orçamento por Ponto", "📊 Cálculo de Preço", "👥 Cadastro de Clientes", "⏱️ Mão de Obra & Serviços", "🛒 Cadastro de Materiais", "🚚 Cadastro de Veículos"
 ])
@@ -255,7 +290,7 @@ with aba_materiais:
                 df_mat.loc[idx_mat, "Preço Unitário"] = novo_preco_mat
                 salvar_no_github("materiais.csv", df_mat, sobrescrever=True)
                 st.session_state.materiais = df_mat.to_dict(orient="records")
-                st.success("Preço do produto atualizado com sucesso!")
+                st.success("Preço do produto updated com sucesso!")
                 st.rerun()
             if st.button("🗑️ Excluir Material do Almoxarifado", key="btn_del_mat"):
                 df_mat = df_mat.drop(idx_mat)
@@ -313,7 +348,6 @@ with aba_mao_obra:
 # BLOCO 4: ORÇAMENTO POR PONTO E NOVA ABA DE CÁLCULO DE PREÇO (COM PDF)
 # ==============================================================================
 
-# Funções internas para ler arquivos de termos comerciais
 def ler_arquivo_txt(n, d): return open(n, "r", encoding="utf-8").read() if os.path.exists(n) else d
 t_pag = ler_arquivo_txt("pagamento.txt", "A combinar.")
 t_gar = ler_arquivo_txt("garantia.txt", "90 dias.")
@@ -429,8 +463,8 @@ with aba_orc_ponto:
     rm4.metric("Impostos", f"R$ {impostos_finais:.2f}")
     rm5.metric("PREÇO FINAL", f"R$ {preco_final:.2f}", delta=f"- R$ {desc_v:.2f}" if desc_v > 0 else None)
 
-    # Conversor FPDF
-    pdf = PDFOrcamento(logo_bytes=logo_upload)
+    # Conversor FPDF aplicando os bytes guardados na sessão
+    pdf = PDFOrcamento(logo_bytes=st.session_state.logo_bytes)
     pdf.add_page()
     pdf.set_font("Helvetica", "", 11)
     
