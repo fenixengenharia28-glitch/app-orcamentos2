@@ -1,5 +1,5 @@
 # ==============================================================================
-# BLOCO 1: IMPORTAÇÕES, DEPENDÊNCIAS E CONFIGURAÇÃO DA PÁGINA STREAMLIT
+# BLOCO 1: IMPORTAÇÕES, DEPENDÊNCIAS E CONFIGURAÇÃO DA PÁGINA
 # ==============================================================================
 import streamlit as st
 import pandas as pd
@@ -235,8 +235,10 @@ with aba_orc_geral:
             servico_bonus = st.checkbox("Definir esta atividade como BÔNUS do orçamento (Dedução no Cálculo)")
             
             if st.button("➕ Adicionar Serviço ao Escopo"):
-                dados_s = df_serv_disp[df_serv_disp["Descrição"] == servico_escolhido].iloc
-                preco_calculado_linha = float(dados_s["Valor Compra Un. (R$)"]) * qtd_servico_solicitado
+                # CORREÇÃO DEFINITIVA DO TYPEERROR DA LINHA 239: Extração de valor segura usando filtro posicional .iloc[0]
+                linha_filtrada = df_serv_disp[df_serv_disp["Descrição"] == servico_escolhido]
+                preco_unitario_servico = float(linha_filtrada["Valor Compras Un. (R$)"].iloc[0])
+                preco_calculado_linha = preco_unitario_servico * qtd_servico_solicitado
                 
                 st.session_state.servicos_orcamento.append({
                     "Descrição": servico_escolhido,
@@ -259,7 +261,7 @@ with aba_orc_geral:
 # BLOCO 7: CENTRAL DO ORÇAMENTO - MATERIAIS, FRETE E PARÂMETROS COMERCIAIS
 # ==============================================================================
     with col_o2:
-        st.markdown("#### 🛒 Inserir Materiais Necessários")
+        st.markdown("#### 🛒 Inserir Materials Necessários")
         if st.session_state.materiais:
             lista_m = [m["Item"] for m in st.session_state.materiais]
             m_sel = st.selectbox("Buscar material no Almoxarifado:", lista_m)
@@ -305,7 +307,7 @@ with aba_orc_geral:
 # ==============================================================================
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
-        desconto_avista_pc = st.number_input("Desconto para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
+        desconto_ सविता_pc = desconto_avista_pc = st.number_input("Desconto para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
 
     # Processamento analítico síncrono
     custo_bruto_materiais = sum([item["Total"] for item in st.session_state.materiais_orcamento])
@@ -363,10 +365,9 @@ with aba_orc_geral:
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "DETALHAMENTO NOMINAL DOS ITENS DO PROJETO", ln=True)
     
-    # Fator proporcional para diluição correta do imposto e custos logísticos
     fator_proporcional = custo_final_servicos_com_imposto / custo_total_servicos_exibicao if custo_total_servicos_exibicao > 0 else 1.0
     
-    # REQUISITO: Grupo exclusivo para a Mão de Obra Normal (Contratada)
+    # Grupo exclusivo para a Mão de Obra Normal (Contratada)
     pdf.set_font("Helvetica", "B", 11)
     pdf.cell(0, 8, "SERVIÇOS DE MÃO DE OBRA CONTRATADOS:", ln=True)
     pdf.set_font("Helvetica", "", 11)
@@ -378,11 +379,11 @@ with aba_orc_geral:
                 valor_serv_com_imposto = serv["Total"] * fator_proporcional
                 pdf.cell(0, 8, f"-> Mao de Obra para: {serv['Descrição']} | Qtd: {serv['Quantidade']} | Investimento: R$ {valor_serv_com_imposto:.2f}", ln=True)
     else:
-        pdf.cell(0, 8, "Nenhum serviço de mao de obra regular selecionado.", ln=True)
+        pdf.cell(0, 8, "Nenhum servico de mao de obra regular selecionado.", ln=True)
     
     pdf.ln(4)
     
-    # REQUISITO: Grupo exclusivo separado para Atividades Concedidas como Bônus
+    # Grupo exclusivo separado para Atividades Concedidas como Bônus
     pdf.set_font("Helvetica", "B", 11)
     pdf.cell(0, 8, "ATIVIDADES ADICIONAIS CONCEDIDAS COMO BÔNUS (CORTESIA):", ln=True)
     pdf.set_font("Helvetica", "", 11)
@@ -390,7 +391,6 @@ with aba_orc_geral:
     if valor_total_deducao_bonus > 0:
         for serv in st.session_state.servicos_orcamento:
             if serv["Bônus"]:
-                # Mostra o valor real que a atividade possui originalmente
                 pdf.cell(0, 8, f"-> Bonus para: {serv['Descrição']} | Qtd: {serv['Quantidade']} | Valor Original: R$ {serv['Total']:.2f} -> DEDUZIDO DO INVESTIMENTO TOTAL", ln=True)
     else:
         pdf.cell(0, 8, "Nenhuma atividade de cortesia cadastrada para este projeto.", ln=True)
