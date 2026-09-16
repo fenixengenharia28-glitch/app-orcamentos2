@@ -1,4 +1,4 @@
 streamlit
 pandas
-reportlab
-qrcode
+requests
+fpdf2
