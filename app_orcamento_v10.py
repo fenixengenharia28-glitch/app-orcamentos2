@@ -214,7 +214,6 @@ with aba_orc_geral:
             lista_cli = [c["Nome"] for c in st.session_state.clientes]
             cli_sel = st.selectbox("Selecione o Cliente Cadastrado:", lista_cli)
             dados_cli = next(item for item in st.session_state.clientes if item["Nome"] == cli_sel)
-            # REQUISITO: Vincula dinamicamente os dados extraídos, incluindo o documento CPF/CNPJ
             contato_disp = dados_cli["Contato"]
             endereco_disp = dados_cli["Endereço"]
             doc_disp = dados_cli.get("Documento", "Não Cadastrado")
@@ -236,7 +235,7 @@ with aba_orc_geral:
             servico_bonus = st.checkbox("Definir esta atividade como BÔNUS do orçamento (Dedução no Cálculo)")
             
             if st.button("➕ Adicionar Serviço ao Escopo"):
-                dados_s = df_serv_disp[df_serv_disp["Descrição"] == servico_escolhido].iloc[0]
+                dados_s = df_serv_disp[df_serv_disp["Descrição"] == servico_escolhido].iloc
                 preco_calculado_linha = float(dados_s["Valor Compra Un. (R$)"]) * qtd_servico_solicitado
                 
                 st.session_state.servicos_orcamento.append({
@@ -312,7 +311,7 @@ with aba_orc_geral:
     custo_bruto_materiais = sum([item["Total"] for item in st.session_state.materiais_orcamento])
     custo_total_servicos_exibicao = sum([item["Total"] for item in st.session_state.servicos_orcamento])
     
-    # REQUISITO: O bônus entra com valor visível, mas é deduzido exatamente aqui no cálculo final
+    # O bônus entra com valor visível, mas é deduzido exatamente aqui no cálculo final
     valor_total_deducao_bonus = sum([item["Total"] for item in st.session_state.servicos_orcamento if item["Bônus"]])
     
     # Calcula os juros síncronos e o frete diluído
@@ -337,13 +336,13 @@ with aba_orc_geral:
     
     st.info(f"💵 À VISTA COM DESCONTO: R$ {preco_final_avista:.2f} ({int(desconto_avista_pc)}% Off) | 💳 PARCELADO (Até 10x de R$ {valor_parcela_10x:.2f})")
 # ==============================================================================
-# BLOCO 9: DESIGN NARRATIVO DO PDF A4 - REMOÇÃO COMPLETA DE PLANILHAS / SPREADSHEETS
+# BLOCO 9: DESIGN NARRATIVO DO PDF A4 - SEPARAÇÃO ABSOLUTA DE SERVIÇOS E BÔNUS
 # ==============================================================================
     pdf = PDFOrcamento(logo_bytes=st.session_state.logo_bytes)
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     
-    # REQUISITO: Dados do Cliente explicitando o CPF ou CNPJ coletado do banco
+    # Dados do Cliente
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "DADOS DO CLIENTE E LOCALIDADE", ln=True)
     pdf.set_font("Helvetica", "", 11)
@@ -360,44 +359,61 @@ with aba_orc_geral:
     pdf.multi_cell(0, 8.5, f"{orc_descricao if orc_descricao else 'Execucao conforme escopo acordado.'}")
     pdf.ln(8)
 
-    # REQUISITO: Discriminação por extenso e rótulos nominais (Sem Planilhas / Sem Spreadsheets)
+    # Detalhamento Nominal sem Planilhas
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "DETALHAMENTO NOMINAL DOS ITENS DO PROJETO", ln=True)
-    pdf.set_font("Helvetica", "", 11)
     
-    # Imprime sequencialmente a listagem nominal de cada mão de obra incluída no escopo
-    pdf.set_font("Helvetica", "B", 11)
-    pdf.cell(0, 8, "SERVIÇOS DE MÃO DE OBRA SOLICITADOS:", ln=True)
-    pdf.set_font("Helvetica", "", 11)
-    
-    # Distribuição e cálculo individual proporcional de imposto diluído por linha de serviço
+    # Fator proporcional para diluição correta do imposto e custos logísticos
     fator_proporcional = custo_final_servicos_com_imposto / custo_total_servicos_exibicao if custo_total_servicos_exibicao > 0 else 1.0
     
-    for serv in st.session_state.servicos_orcamento:
-        valor_serv_com_imposto = serv["Total"] * fator_proporcional
-        status_txt = " (Definido como Bonus no Fechamento)" if serv["Bônus"] else ""
-        # Rótulo e texto corrido sem linhas de tabela
-        pdf.cell(0, 8, f"-> Mao de Obra para: {serv['Descrição']} | Qtd: {serv['Quantidade']} | Investimento: R$ {valor_serv_com_imposto:.2f}{status_txt}", ln=True)
+    # REQUISITO: Grupo exclusivo para a Mão de Obra Normal (Contratada)
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 8, "SERVIÇOS DE MÃO DE OBRA CONTRATADOS:", ln=True)
+    pdf.set_font("Helvetica", "", 11)
+    
+    tem_servico_normal = any([not s["Bônus"] for s in st.session_state.servicos_orcamento])
+    if tem_servico_normal:
+        for serv in st.session_state.servicos_orcamento:
+            if not serv["Bônus"]:
+                valor_serv_com_imposto = serv["Total"] * fator_proporcional
+                pdf.cell(0, 8, f"-> Mao de Obra para: {serv['Descrição']} | Qtd: {serv['Quantidade']} | Investimento: R$ {valor_serv_com_imposto:.2f}", ln=True)
+    else:
+        pdf.cell(0, 8, "Nenhum serviço de mao de obra regular selecionado.", ln=True)
     
     pdf.ln(4)
-    # Imprime sequencialmente a listagem nominal de cada material do almoxarifado
+    
+    # REQUISITO: Grupo exclusivo separado para Atividades Concedidas como Bônus
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 8, "ATIVIDADES ADICIONAIS CONCEDIDAS COMO BÔNUS (CORTESIA):", ln=True)
+    pdf.set_font("Helvetica", "", 11)
+    
+    if valor_total_deducao_bonus > 0:
+        for serv in st.session_state.servicos_orcamento:
+            if serv["Bônus"]:
+                # Mostra o valor real que a atividade possui originalmente
+                pdf.cell(0, 8, f"-> Bonus para: {serv['Descrição']} | Qtd: {serv['Quantidade']} | Valor Original: R$ {serv['Total']:.2f} -> DEDUZIDO DO INVESTIMENTO TOTAL", ln=True)
+    else:
+        pdf.cell(0, 8, "Nenhuma atividade de cortesia cadastrada para este projeto.", ln=True)
+# ==============================================================================
+# BLOCO 10: RESUMO FINANCEIRO CORRIDO, CONDIÇÕES COMERCIAIS E QR CODE
+# ==============================================================================
+    pdf.ln(4)
+    # Listagem nominal dos materiais
     pdf.set_font("Helvetica", "B", 11)
     pdf.cell(0, 8, "MATERIAIS E INSUMOS COMPLEMENTARES:", ln=True)
     pdf.set_font("Helvetica", "", 11)
     
     for mat in st.session_state.materiais_orcamento:
         pdf.cell(0, 8, f"-> Fornecimento de Material: {mat['Material']} | Qtd: {mat['Qtd']} UN | Preco Unitario: R$ {mat['Preço']:.2f} | Total: R$ {mat['Total']:.2f}", ln=True)
-# ==============================================================================
-# BLOCO 10: RESUMO FINANCEIRO CORRIDO, CONDIÇÕES COMERCIAIS E QR CODE
-# ==============================================================================
+
     pdf.ln(6)
     pdf.set_font("Helvetica", "B", 11)
     pdf.cell(0, 8, "RESUMO GERAL DE FECHAMENTO:", ln=True)
     pdf.set_font("Helvetica", "", 11)
-    pdf.cell(0, 8, f"Total Bruto Solicitado Mão de Obra: R$ {custo_final_servicos_com_imposto:.2f}", ln=True)
-    pdf.cell(0, 8, f"Total Bruto Solicitado Fornecimento de Materiais: R$ {custo_bruto_materiais:.2f}", ln=True)
+    pdf.cell(0, 8, f"Total Calculado Mao de Obra Regulamentar: R$ {custo_final_servicos_com_imposto:.2f}", ln=True)
+    pdf.cell(0, 8, f"Total Calculado Fornecimento de Materiais: R$ {custo_bruto_materiais:.2f}", ln=True)
     if valor_total_deducao_bonus > 0:
-        pdf.cell(0, 8, f"Deducao de Atividades Concedidas em Bonus: - R$ {valor_total_deducao_bonus:.2f}", ln=True)
+        pdf.cell(0, 8, f"Deducao por Atividades Concedidas em Bonus: - R$ {valor_total_deducao_bonus:.2f}", ln=True)
     
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, f"VALOR TOTAL DO INVESTIMENTO LIQUIDO FENIX: R$ {preco_final_cheio:.2f}", ln=True)
