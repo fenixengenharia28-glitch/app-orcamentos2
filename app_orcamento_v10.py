@@ -1,5 +1,5 @@
 # ==============================================================================
-# BLOCO 1: IMPORTAÇÕES, ENGINE DO GITHUB BLINDADA E MOTOR DO PDF
+# BLOCO 1: IMPORTAÇÕES, ENGINE DO GITHUB, SALVAMENTO DE LOGO E CONFIGURAÇÃO DO PDF
 # ==============================================================================
 import streamlit as st
 import pandas as pd
@@ -27,6 +27,7 @@ class PDFOrcamento(FPDF):
         self.logo_bytes = logo_bytes
 
     def header(self):
+        # 1. LOGO NO CANTO ESQUERDO
         if self.logo_bytes:
             with open("temp_logo.png", "wb") as f:
                 f.write(self.logo_bytes)
@@ -35,11 +36,14 @@ class PDFOrcamento(FPDF):
                 os.remove("temp_logo.png")
         
         self.set_y(15)
+        
+        # 2. DADOS DA EMPRESA CENTRALIZADOS
         self.set_font("Helvetica", "B", 12)
         self.cell(0, 6, "Fenix Engenharia e Comercio LTDA", ln=True, align="C")
         self.set_font("Helvetica", "", 9)
         self.cell(0, 5, "PRESTAÇÃO DE SERVIÇOS ELÉTRICOS E ENGENHARIA", ln=True, align="C")
         
+        # 3. WHATSAPP NO CANTO DIREITO 
         self.set_y(15)
         self.set_font("Helvetica", "B", 11)
         self.set_x(155)
@@ -85,13 +89,9 @@ def salvar_no_github(nome_arquivo_csv, df_novo, sobrescrever=False):
                 from io import StringIO
                 df_antigo = pd.read_csv(StringIO(conteudo_antigo))
                 
-                # CORREÇÃO PARA PLANILHAS ANTIGAS: Adapta colunas se houver divergência estrutural
                 if nome_arquivo_csv == "servicos.csv" and "Serviço" in df_antigo.columns:
-                    df_antigo = df_antigo.rename(columns={"Serviço": "Descrição"})
-                    if "Preço Base" in df_antigo.columns:
-                        df_antigo = df_antigo.rename(columns={"Preço Base": "Valor Compra Un. (R$)"})
+                    df_antigo = df_antigo.rename(columns={"Serviço": "Descrição", "Preço Base": "Valor Compra Un. (R$)"})
                 
-                # Garante o alinhamento das colunas antes de juntar
                 for col in df_novo.columns:
                     if col not in df_antigo.columns: df_antigo[col] = None
                 for col in df_antigo.columns:
@@ -125,7 +125,6 @@ def carregar_dados(nome_arquivo_csv):
     if os.path.exists(nome_arquivo_csv):
         try:
             df = pd.read_csv(nome_arquivo_csv)
-            # Normalização síncrona pós-leitura local
             if nome_arquivo_csv == "servicos.csv" and "Serviço" in df.columns:
                 df = df.rename(columns={"Serviço": "Descrição", "Preço Base": "Valor Compra Un. (R$)"})
             return df.to_dict(orient="records")
@@ -269,7 +268,7 @@ with aba_veiculos:
                 st.error("Veículo excluído!")
                 st.rerun()
 # ==============================================================================
-# BLOCO 3: ALMOXARIFADO E NOVO PORTFÓLIO DE SERVIÇOS COM CORREÇÃO DE COLUNA
+# BLOCO 3: ALMOXARIFADO E PORTFÓLIO DE SERVIÇOS COM UNIDADE DE MEDIDA CUSTOMIZADA
 # ==============================================================================
 
 # ABA - CADASTRO DE MATERIAIS
@@ -316,7 +315,7 @@ with aba_materiais:
                 st.session_state.materiais = df_mat.to_dict(orient="records")
                 st.rerun()
 
-# ABA - MÃO DE OBRA E PORTFÓLIO DE SERVIÇOS (BLINDAGEM ADICIONADA)
+# ABA - MÃO DE OBRA E PORTFÓLIO DE SERVIÇOS
 with aba_mao_obra:
     st.subheader("🛠️ Portfólio Detalhado de Serviços")
     with st.form("form_novo_servico_detalhado", clear_on_submit=True):
@@ -341,27 +340,22 @@ with aba_mao_obra:
 
     if st.session_state.servicos:
         df_serv = pd.DataFrame(st.session_state.servicos)
-        
-        # Garante de forma forçada que as colunas antigas sejam reajustadas na exibição para não dar KeyError
         if "Serviço" in df_serv.columns:
             df_serv = df_serv.rename(columns={"Serviço": "Descrição", "Preço Base": "Valor Compra Un. (R$)"})
         if "Quantidade" not in df_serv.columns: df_serv["Quantidade"] = 1.0
         if "Unidade" not in df_serv.columns: df_serv["Unidade"] = "UN"
-        if "Total Bruto  (R$)" not in df_serv.columns: df_serv["Total Bruto (R$)"] = df_serv["Quantidade"] * df_serv["Valor Compra Un. (R$)"]
+        if "Total Bruto (R$)" not in df_serv.columns: df_serv["Total Bruto (R$)"] = df_serv["Quantidade"] * df_serv["Valor Compra Un. (R$)"]
         
         st.dataframe(df_serv, use_container_width=True)
         st.markdown("#### ✏️ Alterar ou Excluir Serviço")
-        
-        # Puxa a lista com segurança total
         lista_descricoes = df_serv["Descrição"].dropna().tolist()
         serv_para_gerenciar = st.selectbox("Selecione o Serviço para Modificar:", lista_descricoes, key="sel_serv")
         idx_serv = df_serv[df_serv["Descrição"] == serv_para_gerenciar].index
-        
         col_es1, col_es2 = st.columns(2)
         with col_es1:
-            novo_un_serv = st.text_input("Alterar Unidade do Serviço:", value=str(df_serv.loc[idx_serv, "Unidade"].values[0]) if idx_serv.any() else "UN")
-            novo_qtd_serv = st.number_input("Alterar Qtd:", min_value=0.0, value=float(df_serv.loc[idx_serv, "Quantidade"].values[0]) if idx_serv.any() else 1.0)
-            novo_preco_serv = st.number_input("Alterar Valor Unitário (R$):", min_value=0.0, value=float(df_serv.loc[idx_serv, "Valor Compra Un. (R$)"].values[0]) if idx_serv.any() else 0.0)
+            novo_un_serv = st.text_input("Alterar Unidade do Serviço:", value=str(df_serv.loc[idx_serv, "Unidade"].values) if idx_serv.any() else "UN")
+            novo_qtd_serv = st.number_input("Alterar Qtd:", min_value=0.0, value=float(df_serv.loc[idx_serv, "Quantidade"].values) if idx_serv.any() else 1.0)
+            novo_preco_serv = st.number_input("Alterar Valor Unitário (R$):", min_value=0.0, value=float(df_serv.loc[idx_serv, "Valor Compra Un. (R$)"].values) if idx_serv.any() else 0.0)
         with col_es2:
             st.write("")
             if st.button("📝 Confirmar Mudanças", key="btn_edit_serv"):
@@ -371,16 +365,14 @@ with aba_mao_obra:
                 df_serv.loc[idx_serv, "Total Bruto (R$)"] = novo_qtd_serv * novo_preco_serv
                 salvar_no_github("servicos.csv", df_serv, sobrescrever=True)
                 st.session_state.servicos = df_serv.to_dict(orient="records")
-                st.success("Serviço atualizado!")
                 st.rerun()
             if st.button("🗑️ Excluir Serviço", key="btn_del_serv"):
                 df_serv = df_serv.drop(idx_serv)
                 salvar_no_github("servicos.csv", df_serv, sobrescrever=True)
                 st.session_state.servicos = df_serv.to_dict(orient="records")
-                st.error("Serviço removido!")
                 st.rerun()
 # ==============================================================================
-# BLOCO 4: ORÇAMENTO POR PONTO E NOVA ABA DE CÁLCULO DE PREÇO (COM PDF)
+# BLOCO 4: ORÇAMENTO POR PONTO, CÁLCULO DE PREÇO E INJEÇÃO DO QR CODE NO PDF
 # ==============================================================================
 
 def ler_arquivo_txt(n, d): return open(n, "r", encoding="utf-8").read() if os.path.exists(n) else d
@@ -494,10 +486,12 @@ with aba_orc_ponto:
     rm4.metric("Impostos", f"R$ {impostos_finais:.2f}")
     rm5.metric("PREÇO FINAL", f"R$ {preco_final:.2f}", delta=f"- R$ {desc_v:.2f}" if desc_v > 0 else None)
 
+    # ─── GERAÇÃO DO ARQUIVO PDF COM QR CODE ACOPLADO ───
     pdf = PDFOrcamento(logo_bytes=st.session_state.logo_bytes)
     pdf.add_page()
     pdf.set_font("Helvetica", "", 11)
     
+    # Seção Cliente
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 8, "DADOS DO CLIENTE", ln=True)
     pdf.set_font("Helvetica", "", 10)
@@ -506,12 +500,14 @@ with aba_orc_ponto:
     pdf.cell(0, 6, f"Endereco da Obra: {endereco_disp}", ln=True)
     pdf.ln(5)
 
+    # Seção Escopo
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 8, f"SERVICO: Orcamento por Ponto Elétrico ({int(op_qtd_pontos)} pontos)", ln=True)
     pdf.set_font("Helvetica", "", 10)
     pdf.multi_cell(0, 6, f"Escopo Técnico:\n{orc_descricao if orc_descricao else 'Execucao conforme levantamento de pontos.'}")
     pdf.ln(5)
 
+    # Valores
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 8, "RESUMO FINANCEIRO", ln=True)
     pdf.set_font("Helvetica", "", 10)
@@ -524,10 +520,33 @@ with aba_orc_ponto:
     pdf.cell(0, 8, f"VALOR TOTAL DO INVESTIMENTO: R$ {preco_final:.2f}", ln=True)
     pdf.ln(5)
 
+    # Termos Comerciais e QR CODE INJETADO LADO A LADO
     pdf.set_font("Helvetica", "B", 12)
-    pdf.cell(0, 8, "CONDICOES COMERCIAIS", ln=True)
+    pdf.cell(0, 8, "CONDIÇÕES COMERCIAIS", ln=True)
+    
+    # Armazena a posição Y atual para renderizar o QR Code paralelamente aos textos
+    y_condicoes = pdf.get_y()
+    
     pdf.set_font("Helvetica", "", 10)
-    pdf.multi_cell(0, 5, f"Formas de Pagamento:\n{t_pag}\n\nGarantia:\n{t_gar}\n\nObservacoes:\n{t_obs}")
+    # Define largura limitada (135mm) para o texto não invadir a área do QR Code
+    pdf.multi_cell(135, 5, f"Formas de Pagamento:\n{t_pag}\n\nGarantia:\n{t_gar}\n\nObservacoes:\n{t_obs}")
+    
+    # Faz o download síncrono do QR Code da API para embutir no arquivo PDF
+    try:
+        qr_res = requests.get(URL_QRCODE, timeout=5)
+        if qr_res.status_code == 200:
+            with open("temp_pdf_qr.png", "wb") as f:
+                f.write(qr_res.content)
+            # Renderiza o QR Code no canto inferior direito da folha (X=160, Y baseado nas condições)
+            pdf.image("temp_pdf_qr.png", 160, y_condicoes, 35, 35)
+            pdf.set_y(y_condicoes + 36)
+            pdf.set_x(160)
+            pdf.set_font("Helvetica", "B", 8)
+            pdf.cell(35, 4, "Aprovar via WhatsApp", ln=True, align="C")
+            if os.path.exists("temp_pdf_qr.png"):
+                os.remove("temp_pdf_qr.png")
+    except Exception:
+        pass
     
     pdf_output = pdf.output()
 
