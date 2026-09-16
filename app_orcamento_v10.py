@@ -27,7 +27,6 @@ class PDFOrcamento(FPDF):
 
     def header(self):
         if self.logo_bytes:
-            # Salva temporariamente os bytes da imagem carregada para injetar no PDF
             with open("temp_logo.png", "wb") as f:
                 f.write(self.logo_bytes.getbuffer())
             self.image("temp_logo.png", 10, 8, 33)
@@ -35,7 +34,7 @@ class PDFOrcamento(FPDF):
                 os.remove("temp_logo.png")
         
         self.set_font("Helvetica", "B", 14)
-        self.cell(40) # Espaçamento para não sobrepor a logo
+        self.cell(40) 
         self.cell(0, 10, "ORÇAMENTO DE SERVIÇOS ELÉTRICOS", ln=True, align="R")
         self.set_draw_color(220, 220, 220)
         self.line(10, 45, 200, 45)
@@ -49,7 +48,7 @@ class PDFOrcamento(FPDF):
         self.cell(0, 10, f"Página {self.page_no()}/{{nb}}", align="C", ln=True)
         self.cell(0, 5, "Gerado por Fênix Empreendimento - Contato: (31) 99539-2027", align="C")
 
-# ─── SCONECTIVIDADE DO BANCO DE DADOS GITHUB ───
+# ─── CONECTIVIDADE DO BANCO DE DADOS GITHUB ───
 def salvar_no_github(nome_arquivo_csv, df_novo):
     try:
         token = st.secrets["GITHUB_TOKEN"]
@@ -93,8 +92,8 @@ if 'materiais' not in st.session_state: st.session_state.materiais = carregar_da
 if 'servicos' not in st.session_state: st.session_state.servicos = carregar_dados("servicos.csv")
 if 'materiais_orcamento' not in st.session_state: st.session_state.materiais_orcamento = []
 
-# Cabeçalho visual da plataforma
-col_topo1, col_topo2 = st.columns()
+# CORREÇÃO DA LINHA 97: Definido o número 2 explicitamente dentro de st.columns
+col_topo1, col_topo2 = st.columns(2)
 with col_topo1:
     st.title("⚡ Painel de Gestão e Orçamentos Elétricos")
     logo_upload = st.file_uploader("Upload da Logo da sua Empresa (PNG/JPG):", type=["png", "jpg", "jpeg"])
@@ -242,7 +241,7 @@ with aba_orcamento:
         st.markdown("### 2. Adicionar Materiais Específicos")
         if st.session_state.materiais:
             lista_m = [m["Item"] for m in st.session_state.materiais]
-            m_sel = st.selectbox("Buscar material do Catálogo:", lista_m)
+            m_sel = m_sel = st.selectbox("Buscar material do Catálogo:", lista_m)
             dados_m = next(item for item in st.session_state.materiais if item["Item"] == m_sel)
             p_sugerido = dados_m["Preço Unitário"]
         else:
@@ -306,14 +305,14 @@ with aba_orcamento:
     pdf.set_font("Helvetica", "", 10)
     pdf.cell(0, 6, f"Cliente: {cli_sel}", ln=True)
     pdf.cell(0, 6, f"Contato: {contato_disp}", ln=True)
-    pdf.cell(0, 6, f"Endereço da Obra: {endereco_disp}", ln=True)
+    pdf.cell(0, 6, f"Endereco da Obra: {endereco_disp}", ln=True)
     pdf.ln(5)
 
     # Seção Escopo
     pdf.set_font("Helvetica", "B", 12)
-    pdf.cell(0, 8, f"SERVIÇO PRINCIPAL: {serv_sel}", ln=True)
+    pdf.cell(0, 8, f"SERVICO PRINCIPAL: {serv_sel}", ln=True)
     pdf.set_font("Helvetica", "", 10)
-    pdf.multi_cell(0, 6, f"Escopo Tecnico:\n{orc_descricao if orc_descricao else 'Conforme especificações.'}")
+    pdf.multi_cell(0, 6, f"Escopo Tecnico:\n{orc_descricao if orc_descricao else 'Conforme especificacoes.'}")
     pdf.ln(5)
 
     # Valores
@@ -326,12 +325,12 @@ with aba_orcamento:
     pdf.cell(0, 6, f"- Encargos e Impostos Inclusos: R$ {impostos_finais:.2f}", ln=True)
     if desc_v > 0: pdf.cell(0, 6, f"- Desconto Especial: - R$ {desc_v:.2f}", ln=True)
     pdf.set_font("Helvetica", "B", 11)
-    pdf.cell(0, 8, f"VALOR TOTAL DO ORÇAMENTO: R$ {preco_final:.2f}", ln=True)
+    pdf.cell(0, 8, f"VALOR TOTAL DO ORCAMENTO: R$ {preco_final:.2f}", ln=True)
     pdf.ln(5)
 
     # Termos Comerciais (.txt)
     pdf.set_font("Helvetica", "B", 12)
-    pdf.cell(0, 8, "CONDIÇÕES COMERCIAIS", ln=True)
+    pdf.cell(0, 8, "CONDICOES COMERCIAIS", ln=True)
     pdf.set_font("Helvetica", "", 10)
     pdf.multi_cell(0, 5, f"Formas de Pagamento:\n{t_pag}\n\nGarantia:\n{t_gar}\n\nObservacoes:\n{t_obs}")
     
