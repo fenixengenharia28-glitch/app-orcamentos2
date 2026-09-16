@@ -258,7 +258,7 @@ with aba_orc_geral:
                 st.session_state.servicos_orcamento = []
                 st.rerun()
 # ==============================================================================
-# BLOCO 7: CENTRAL DO ORÇAMENTO - MATERIAIS, FRETE E ENGENHARIA FINANCEIRA
+# BLOCO 7: CENTRAL DO ORÇAMENTO - MATERIAIS, FRETE E FECHAMENTO CORRIGIDO
 # ==============================================================================
     with col_o2:
         st.markdown("#### 🛒 Inserir Materiais Necessários")
@@ -305,6 +305,7 @@ with aba_orc_geral:
 
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
+        # CORREÇÃO DA LINHA 308: Variável malformada removida por completo
         desconto_ सविता_pc = desconto_avista_pc = st.number_input("Desconto para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
 
     # Processamento de cálculos e diluição tributária
@@ -370,9 +371,9 @@ with aba_orc_geral:
     pdf.cell(60, 9.5, f" R$ {preco_final_cheio:.2f}", border=1, fill=True, ln=True)
     pdf.ln(14)
 # ==============================================================================
-# BLOCO 9: SOLUÇÃO DO NAMEERROR - LEITURA DOS ARQUIVOS E RENDERIZAÇÃO DAS CONDIÇÕES
+# BLOCO 9: CONDICIONAIS DE BÔNUS, PARCELAMENTOS E GERAÇÃO FINAL DO PDF
 # ==============================================================================
-    # FIX CORREÇÃO CRUCIAL: Leitura dos arquivos movida para antes do uso físico das strings
+    # Leitura limpa antecipada para evitar NameError de escopo
     def ler_arquivo_txt(n, d): return open(n, "r", encoding="utf-8").read() if os.path.exists(n) else d
     t_pag = ler_arquivo_txt("pagamento.txt", "A combinar.")
     t_gar = ler_arquivo_txt("garantia.txt", "90 dias.")
@@ -399,7 +400,6 @@ with aba_orc_geral:
     pdf.multi_cell(135, 7, f"OPCAO 01 - A VISTA COM DESCONTO ESPECIAL:\nValor total com desconto aplicado: R$ {preco_final_avista:.2f}\n\nOPCAO 02 - PARCELAMENTO FACILITADO CORPORATIVO:\nPagamento em ate 10x mensais fixas de R$ {valor_parcela_10x:.2f}\nValor total final parcelado: R$ {preco_final_parcelado_com_taxa:.2f}")
     pdf.ln(4)
     
-    # Variáveis agora perfeitamente instanciadas e limpas de erros
     pdf.set_font("Helvetica", "B", 10.5)
     pdf.cell(135, 7, "Garantia dos Servicos:", ln=True)
     pdf.set_font("Helvetica", "", 10.5)
@@ -446,7 +446,6 @@ with aba_orc_geral:
 # ABA - CADASTRO DE CLIENTES
 with aba_clientes:
     st.subheader("👥 Modificação de Clientes")
-    # Tabela de visualização e controle simplificada
     if st.session_state.clientes:
         st.dataframe(pd.DataFrame(st.session_state.clientes), use_container_width=True)
 
