@@ -170,7 +170,7 @@ aba_orc_geral, aba_clientes, aba_mao_obra, aba_materiais, aba_veiculos = st.tabs
     "📋 Orçamento Geral", "👥 Gestão de Clientes", "🛠️ Gestão de Serviços", "🛒 Almoxarifado", "🚚 Frota e Logística"
 ])
 # ==============================================================================
-# BLOCO 6: CENTRAL DO ORÇAMENTO - PARTE 1: SELEÇÃO DE CLIENTE E PRESTAÇÕES
+# BLOCO 6: CENTRAL DO ORÇAMENTO - SELEÇÃO DE CLIENTE E LEITURA DE UNIDADES DIVERSAS
 # ==============================================================================
 with aba_orc_geral:
     st.subheader("📋 Central Única de Emissão de Orçamentos")
@@ -199,17 +199,22 @@ with aba_orc_geral:
             lista_servicos_nomes = df_serv_disp["Descrição"].dropna().tolist()
             servico_escolhido = st.selectbox("Escolha qual tipo de serviço será prestado:", lista_servicos_nomes)
             
-            qtd_servico_solicitado = st.number_input("Especifique a quantidade para este serviço:", min_value=1.0, value=1.0, step=1.0)
+            # Captura a unidade customizada do serviço selecionado direto da tabela
+            linha_filtrada = df_serv_disp[df_serv_disp["Descrição"] == servico_escolhido]
+            unidade_medida_servico = str(linha_filtrada["Unidade"].iloc[0]) if "Unidade" in linha_filtrada.columns else "UN"
+            
+            # REQUISITO ATUALIZADO: O campo de quantidade exibe dinamicamente o sufixo correspondente à unidade
+            qtd_servico_solicitado = st.number_input(f"Especifique a quantidade ({unidade_medida_servico}):", min_value=1.0, value=1.0, step=1.0)
             servico_bonus = st.checkbox("Definir esta atividade como BÔNUS do orçamento")
             
             if st.button("➕ Adicionar Serviço ao Escopo"):
-                linha_filtrada = df_serv_disp[df_serv_disp["Descrição"] == servico_escolhido]
                 preco_unitario_servico = float(linha_filtrada["Valor Compra Un. (R$)"].iloc[0])
                 preco_calculado_linha = preco_unitario_servico * qtd_servico_solicitado
                 
                 st.session_state.servicos_orcamento.append({
                     "Descrição": servico_escolhido,
                     "Quantidade": int(qtd_servico_solicitado),
+                    "Unidade": unidade_medida_servico,
                     "Total": preco_calculado_linha,
                     "Bônus": servico_bonus,
                     "Preço Original": preco_calculado_linha
@@ -273,41 +278,32 @@ with aba_orc_geral:
             custo_transporte = (km_r / cons_carro) * preco_combustivel
             depreciacao_veiculo_proporcional = (dep_anual / 365)
 # ==============================================================================
-# BLOCO 8: NOVO MOTOR FINANCEIRO - ENGENHARIA DE CÁLCULO INTEGRAL DE SERVIÇOS
+# BLOCO 8: MOTOR FINANCEIRO - ENGENHARIA DE DISTRIBUIÇÃO E PORCENTAGEM DE DESCONTO
 # ==============================================================================
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
         desconto_comercial_pc = st.number_input("Desconto Comercial Concedido (%):", min_value=0.0, value=0.0, step=1.0)
         desconto_avista_pc = st.number_input("Desconto Adicional para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
 
-    # 1. Somatório do custo de materiais bruto
+    # Processamento dos somatórios com as regras de diluição de frota
     custo_bruto_materiais = sum([item["Total"] for item in st.session_state.materiais_orcamento])
-    
-    # 2. Somatório bruto total de todos os serviços (Normais + Bônus)
     custo_bruto_servicos_total = sum([item["Total"] for item in st.session_state.servicos_orcamento])
     
-    # 3. Consolidação de custos logísticos e tributários da Fenix
     total_custos_frota_diluiveis = custo_transporte + depreciacao_veiculo_proporcional + margem_manutencao_veiculo
     valor_imposto_real = (custo_bruto_servicos_total + custo_bruto_materiais + custo_transporte) * (imposto_pc / 100)
     
-    # 4. Cálculo da Mão de Obra total unificada com todos os encargos embutidos
     total_mao_obra_com_encargos = custo_bruto_servicos_total + valor_imposto_real + total_custos_frota_diluiveis
-    
-    # 5. Descobre o fator proporcional unificado para espalhar os custos em todas as linhas igualmente
     fator_proporcional = total_mao_obra_com_encargos / custo_bruto_servicos_total if custo_bruto_servicos_total > 0 else 1.0
     
-    # REQUISITO ATUALIZADO: Separação analítica para a nova lógica da Composição Financeira
     custo_final_servicos_normais_com_imposto = sum([item["Total"] for item in st.session_state.servicos_orcamento if not item["Bônus"]]) * fator_proporcional
     valor_total_bonus_exibicao = sum([item["Total"] for item in st.session_state.servicos_orcamento if item["Bônus"]]) * fator_proporcional
     
-    # REQUISITO ATUALIZADO: "Mão de Obra" passa a englobar os serviços normais + o valor do bônus diluído
+    # REQUISITO COMERCIAL: Mão de Obra cheia unificada (Serviços Contratados + Bônus)
     valor_composto_mao_de_obra_total = custo_final_servicos_normais_com_imposto + valor_total_bonus_exibicao
     
-    # 6. Cálculo do desconto comercial sobre a soma dos serviços faturáveis e materiais
-    subtotal_faturavel_base = custo_final_servicos_com_imposto = custo_final_servicos_normais_com_imposto + custo_bruto_materiais
+    subtotal_faturavel_base = custo_final_servicos_normais_com_imposto + custo_bruto_materiais
     valor_desconto_dinheiro = subtotal_faturavel_base * (desconto_comercial_pc / 100)
     
-    # Preço final cheio deduz o desconto comercial (Bônus já foi retirado ao não entrar no subtotal faturável base)
     preco_final_cheio = subtotal_faturavel_base - valor_desconto_dinheiro
     if preco_final_cheio < 0: preco_final_cheio = 0.0
     
@@ -318,11 +314,11 @@ with aba_orc_geral:
     st.markdown("---")
     st.markdown("### 📊 Painel Geral de Resumo")
     rm1, rm2, rm3 = st.columns(3)
-    rm1.metric("Mão de Obra Unificada (Normais + Bônus)", f"R$ {valor_composto_mao_de_obra_total:.2f}")
+    rm1.metric("Mão de Obra Bruta (Normais + Bônus)", f"R$ {valor_composto_mao_de_obra_total:.2f}")
     rm2.metric("Materiais Coletados", f"R$ {custo_bruto_materiais:.2f}")
     rm3.metric("VALOR TOTAL FINAL COBRADO", f"R$ {preco_final_cheio:.2f}", delta=f"- R$ {valor_desconto_dinheiro:.2f}" if valor_desconto_dinheiro > 0 else None)
 # ==============================================================================
-# BLOCO 9: DESIGN DO PDF A4 - COMPOSIÇÃO FINANCEIRA COM FLUXO DE DEDUÇÕES (FIXED)
+# BLOCO 9: DESIGN DO PDF A4 - COMPOSIÇÃO FINANCEIRA COM IMPRESSÃO DE OUTRAS UNIDADES
 # ==============================================================================
     pdf = PDFOrcamento(logo_bytes=st.session_state.logo_bytes)
     pdf.set_auto_page_break(auto=True, margin=15)
@@ -349,16 +345,17 @@ with aba_orc_geral:
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "DETALHAMENTO NOMINAL DOS ITENS DO PROJETO", ln=True)
     
-    # Lista de Mão de Obra Contratada normal
+    # Serviços normais contratados
     pdf.set_font("Helvetica", "B", 11)
     pdf.cell(0, 8, "SERVIÇOS DE MÃO DE OBRA CONTRATADOS:", ln=True)
     pdf.set_font("Helvetica", "", 11)
     for serv in st.session_state.servicos_orcamento:
         if not serv["Bônus"]:
             valor_serv_com_todos_custos = serv["Total"] * fator_proporcional
-            pdf.cell(0, 8, f"-> Mao de Obra para: {serv['Descrição']} | Qtd: {serv['Quantidade']} | Investimento: R$ {valor_serv_com_todos_custos:.2f}", ln=True)
+            # REQUISITO ATUALIZADO: Imprime a unidade de medida salva dinamicamente para o serviço
+            pdf.cell(0, 8, f"-> Mao de Obra para: {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')} | Investimento: R$ {valor_serv_com_todos_custos:.2f}", ln=True)
     
-    # Lista separado exclusivo para os Bônus (Cortesias)
+    # Atividades concedidas como Bônus
     pdf.ln(4)
     pdf.set_font("Helvetica", "B", 11)
     pdf.cell(0, 8, "ATIVIDADES CONCEDIDAS COMO BÔNUS (CORTESIA):", ln=True)
@@ -367,11 +364,12 @@ with aba_orc_geral:
         for serv in st.session_state.servicos_orcamento:
             if serv["Bônus"]:
                 valor_bonus_inflado_linha = serv["Total"] * fator_proporcional
-                pdf.cell(0, 8, f"-> Bonus para: {serv['Descrição']} | Qtd: {serv['Quantidade']} | Valor Real com Diluicao: R$ {valor_bonus_inflado_linha:.2f} -> INCLUSO COMO CORTESIA", ln=True)
+                # REQUISITO ATUALIZADO: Imprime a unidade de medida para o bônus
+                pdf.cell(0, 8, f"-> Bonus para: {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')} | Valor Real com Diluicao: R$ {valor_bonus_inflado_linha:.2f} -> INCLUSO COMO CORTESIA", ln=True)
     else:
         pdf.cell(0, 8, "Nenhuma atividade de bonus registrada para este projeto.", ln=True)
     
-    # Lista de Materiais
+    # Materiais
     pdf.ln(4)
     pdf.set_font("Helvetica", "B", 11)
     pdf.cell(0, 8, "MATERIAIS E INSUMOS COMPLEMENTARES:", ln=True)
@@ -381,24 +379,19 @@ with aba_orc_geral:
     
     pdf.ln(8)
     
-    # REQUISITO ATUALIZADO: Composição Financeira mostrando o valor cheio e aplicando as subtrações sucessivas
+    # Composição Financeira com fluxo sequencial de deduções sucessivas
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "COMPOSIÇÃO FINANCEIRA DO PROJETO", ln=True)
     pdf.set_font("Helvetica", "", 11)
-    # Exibe o valor total somado dos serviços + bônus diluídos
     pdf.cell(0, 8, f"Mao de Obra: R$ {valor_composto_mao_de_obra_total:.2f}", ln=True)
     pdf.cell(0, 8, f"Material: R$ {custo_bruto_materiais:.2f}", ln=True)
-    # Demonstra a retirada (subtração) exata do bônus
     pdf.cell(0, 8, f"Bonus: - R$ {valor_total_bonus_exibicao:.2f}", ln=True)
-    # Demonstra a retirada (subtração) exata do desconto comercial
     pdf.cell(0, 8, f"Desconto: - R$ {valor_desconto_dinheiro:.2f}", ln=True)
-    # Resultado final líquido do investimento faturado
     pdf.cell(0, 8, f"Valor Total: R$ {preco_final_cheio:.2f}", ln=True)
 # ==============================================================================
 # BLOCO 10: ALTERAÇÃO DE RÓTULO COMERCIAL E INJEÇÃO DE CONDIÇÕES DE PAGAMENTO
 # ==============================================================================
     pdf.ln(4)
-    # Mantém o padrão do termo comercial customizado exigido
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, f"valor total do investimento: R$ {preco_final_cheio:.2f}", ln=True)
     pdf.ln(10)
@@ -445,7 +438,7 @@ with aba_orc_geral:
     with col_d2:
         st.link_button("💬 Enviar via WhatsApp", LINK_WHATSAPP)
 # ==============================================================================
-# BLOCO 11: SISTEMA CRUD COMPLETO COM SUPORTE OPERACIONAL INTEGRAL
+# BLOCO 11: RETAGUARDA CRUD COM SUPORTE A UNIDADES DE MEDIDA CUSTOMIZADAS
 # ==============================================================================
 def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio):
     with nome_aba:
@@ -486,6 +479,7 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
                     st.rerun()
 
 renderizar_crud(aba_clientes, "cli", "clientes.csv", ["Nome", "Documento", "Contato", "Endereço"], {})
-renderizar_crud(aba_mao_obra, "serv", "servicos.csv", ["Descrição", "Valor Compra Un. (R$)"], {})
+# REQUISITO ATUALIZADO: Incluído o campo "Unidade" na lista para permitir qualquer medida no portfólio de serviços
+renderizar_crud(aba_mao_obra, "serv", "servicos.csv", ["Descrição", "Unidade", "Valor Compra Un. (R$)"], {})
 renderizar_crud(aba_materiais, "mat", "materiais.csv", ["Item", "Marca", "Unidade", "Preço Unitário"], {})
 renderizar_crud(aba_veiculos, "vei", "veiculos.csv", ["Modelo", "Placa", "Consumo (Km/L)", "Depreciação Anual Est."], {})
