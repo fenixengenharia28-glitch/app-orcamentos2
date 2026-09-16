@@ -170,7 +170,7 @@ aba_orc_geral, aba_clientes, aba_mao_obra, aba_materiais, aba_veiculos = st.tabs
     "📋 Orçamento Geral", "👥 Gestão de Clientes", "🛠️ Gestão de Serviços", "🛒 Almoxarifado", "🚚 Frota e Logística"
 ])
 # ==============================================================================
-# BLOCO 6: CENTRAL DO ORÇAMENTO - PARTE 1: SELEÇÃO DE CLIENTE E PRESTAÇÕES (FIXED)
+# BLOCO 6: CENTRAL DO ORÇAMENTO - PARTE 1: SELEÇÃO DE CLIENTE E PRESTAÇÕES
 # ==============================================================================
 with aba_orc_geral:
     st.subheader("📋 Central Única de Emissão de Orçamentos")
@@ -204,7 +204,6 @@ with aba_orc_geral:
             
             if st.button("➕ Adicionar Serviço ao Escopo"):
                 linha_filtrada = df_serv_disp[df_serv_disp["Descrição"] == servico_escolhido]
-                # CORREÇÃO INTEGRAL DO INDEXADOR: .iloc mudado para .iloc[0] para evitar o TypeError de extração
                 preco_unitario_servico = float(linha_filtrada["Valor Compra Un. (R$)"].iloc[0])
                 preco_calculado_linha = preco_unitario_servico * qtd_servico_solicitado
                 
@@ -274,26 +273,28 @@ with aba_orc_geral:
             custo_transporte = (km_r / cons_carro) * preco_combustivel
             depreciacao_veiculo_proporcional = (dep_anual / 365)
 # ==============================================================================
-# BLOCO 8: ENGENHARIA FINANCEIRA - CÁLCULOS ANALÍTICOS DE PROPOSTA
+# BLOCO 8: ENGENHARIA FINANCEIRA - DILUIÇÃO INTEGRAL DA FROTA NA MÃO DE OBRA
 # ==============================================================================
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
         desconto_v_manual = st.number_input("Valor de Desconto Promocional Concedido (R$):", min_value=0.0, value=0.0)
         desconto_avista_pc = st.number_input("Desconto Adicional para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
 
-    # Processamento dos somatórios com as regras de diluição
+    # Somatórios de base
     custo_bruto_materiais = sum([item["Total"] for item in st.session_state.materiais_orcamento])
-    
     custo_total_servicos_normais = sum([item["Total"] for item in st.session_state.servicos_orcamento if not item["Bônus"]])
     valor_total_bonus_exibicao = sum([item["Total"] for item in st.session_state.servicos_orcamento if item["Bônus"]])
     
-    # Cálculo das taxas reais Fenix diluídas
-    valor_imposto_real = (custo_total_servicos_normais + custo_bruto_materiais + custo_transporte) * (imposto_pc / 100)
+    # REQUISITO: Combustível, Depreciação e Manutenção Preventiva calculados para diluição síncrona
     total_custos_frota_diluiveis = custo_transporte + depreciacao_veiculo_proporcional + margem_manutencao_veiculo
     
-    # Mão de obra absorve impostos, combustível, depreciação e manutenção preventiva
+    # Cálculo das taxas fiscais reais Fenix
+    valor_imposto_real = (custo_total_servicos_normais + custo_bruto_materiais + custo_transporte) * (imposto_pc / 100)
+    
+    # REQUISITO: Toda a carga tributária + toda a despesa automobilística é embutida síncronamente na Mão de Obra
     custo_final_servicos_com_imposto = custo_total_servicos_normais + valor_imposto_real + total_custos_frota_diluiveis
     
+    # Fechamento líquido deduzindo os bônus e os descontos de tela
     preco_final_cheio = (custo_final_servicos_com_imposto + custo_bruto_materiais) - valor_total_bonus_exibicao - desconto_v_manual
     if preco_final_cheio < 0: preco_final_cheio = 0.0
     
@@ -308,7 +309,7 @@ with aba_orc_geral:
     rm2.metric("Materiais Coletados", f"R$ {custo_bruto_materiais:.2f}")
     rm3.metric("VALOR INVESTIMENTO FECHADO", f"R$ {preco_final_cheio:.2f}")
 # ==============================================================================
-# BLOCO 9: DESIGN DO PDF A4 - DISCRIMINAÇÃO DOS 5 VALORES EXIGIDOS (SEM PLANILHAS)
+# BLOCO 9: DESIGN DO PDF A4 - EXIBIÇÃO DA MÃO DE OBRA COM CUSTO DE FROTA EMBUTIDO
 # ==============================================================================
     pdf = PDFOrcamento(logo_bytes=st.session_state.logo_bytes)
     pdf.set_auto_page_break(auto=True, margin=15)
@@ -331,23 +332,24 @@ with aba_orc_geral:
     pdf.multi_cell(0, 8.5, f"{orc_descricao if orc_descricao else 'Execucao conforme escopo acordado.'}")
     pdf.ln(8)
 
-    # Detalhamento por extenso sem planilhas
+    # Detalhes nominais por extenso (Sem tabelas)
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "DETALHAMENTO NOMINAL DOS ITENS DO PROJETO", ln=True)
     
-    # Listagem nominal de Mão de Obra
+    # Roteiro de Serviços normais
     pdf.set_font("Helvetica", "B", 11)
     pdf.cell(0, 8, "SERVIÇOS DE MÃO DE OBRA CONTRATADOS:", ln=True)
     pdf.set_font("Helvetica", "", 11)
     
+    # REQUISITO: O fator de proporção agora espalha o custo total de frota de forma limpa nas linhas de serviço
     fator_proporcional = custo_final_servicos_com_imposto / custo_total_servicos_normais if custo_total_servicos_normais > 0 else 1.0
     for serv in st.session_state.servicos_orcamento:
         if not serv["Bônus"]:
-            valor_serv_com_imposto = serv["Total"] * fator_proporcional
-            pdf.cell(0, 8, f"-> Mao de Obra para: {serv['Descrição']} | Qtd: {serv['Quantidade']} | Investimento: R$ {valor_serv_com_imposto:.2f}", ln=True)
+            valor_serv_com_todos_custos = serv["Total"] * fator_proporcional
+            pdf.cell(0, 8, f"-> Mao de Obra para: {serv['Descrição']} | Qtd: {serv['Quantidade']} | Investimento: R$ {valor_serv_com_todos_custos:.2f}", ln=True)
     
     pdf.ln(4)
-    # Listagem nominal de Materiais
+    # Roteiro de Materiais
     pdf.set_font("Helvetica", "B", 11)
     pdf.cell(0, 8, "MATERIAIS E INSUMOS COMPLEMENTARES:", ln=True)
     pdf.set_font("Helvetica", "", 11)
@@ -356,7 +358,7 @@ with aba_orc_geral:
     
     pdf.ln(8)
     
-    # Seção de composição com os 5 valores discriminados
+    # Seção com a composição financeira exigida contendo os 5 valores
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "COMPOSIÇÃO FINANCEIRA DO PROJETO", ln=True)
     pdf.set_font("Helvetica", "", 11)
@@ -366,11 +368,12 @@ with aba_orc_geral:
     pdf.cell(0, 8, f"Desconto: R$ {valor_total_bonus_exibicao + desconto_v_manual:.2f}", ln=True)
     pdf.cell(0, 8, f"Valor Total: R$ {preco_final_cheio:.2f}", ln=True)
 # ==============================================================================
-# BLOCO 10: ALTERAÇÃO DE RÓTULO COMERCIAL E INJEÇÃO DE CONDIÇÕES DE PAGAMENTO
+# BLOCO 10: CONDIÇÕES DE PAGAMENTO, TEXTOS COMPLEMENTARES E EMISSÃO DO PDF
 # ==============================================================================
     pdf.ln(4)
+    # REQUISITO: Exibição estrita do termo "valor total do investimento" em minúsculas
     pdf.set_font("Helvetica", "B", 12)
-    pdf.cell(0, 10, f"valor total do investimento: R$ {preco_final_cheio:.2f}", ln=True)
+    pdf.cell(0, 10, f"valor total do investmento: R$ {preco_final_cheio:.2f}", ln=True)
     pdf.ln(10)
 
     pdf.cell(0, 10, "CONDIÇÕES DE PAGAMENTO", ln=True)
@@ -433,10 +436,10 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
                     inputs_coletados[campo] = st.text_input(f"{campo}:", key=f"in_{s_key}_{campo}")
             
             if st.form_submit_button("💾 Arquivar Registro no GitHub"):
-                if inputs_coletados[campos_lista[0]]:
+                if inputs_coletados[campos_lista]:
                     df_novo_registro = pd.DataFrame([inputs_coletados])
                     if not df_crud.empty:
-                        df_crud = df_crud[df_crud[campos_lista[0]] != inputs_coletados[campos_lista[0]]]
+                        df_crud = df_crud[df_crud[campos_lista] != inputs_coletados[campos_lista]]
                     df_final_salvar = pd.concat([df_crud, df_novo_registro]).reset_index(drop=True)
                     salvar_no_github(nome_arquivo_csv, df_final_salvar, sobrescrever=True)
                     st.success("Dados processados e salvos com sucesso!")
@@ -445,8 +448,8 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
         if dados_atuais:
             st.markdown("#### 📋 Registros Armazenados")
             for i, reg in enumerate(dados_atuais):
-                col_reg, col_btn = st.columns([4, 1])
-                col_reg.write(f"🔹 **{reg[campos_lista[0]]}** - { {k:v for k,v in reg.items() if k != campos_lista[0]} }")
+                col_reg, col_btn = st.columns()
+                col_reg.write(f"🔹 **{reg[campos_lista]}** - { {k:v for k,v in reg.items() if k != campos_lista} }")
                 if col_btn.button("🗑️ Excluir", key=f"del_{s_key}_{i}"):
                     df_filtrado_exclusao = pd.DataFrame(dados_atuais).drop(i).reset_index(drop=True)
                     salvar_no_github(nome_arquivo_csv, df_filtrado_exclusao, sobrescrever=True)
@@ -454,7 +457,6 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
                     st.rerun()
 
 renderizar_crud(aba_clientes, "cli", "clientes.csv", ["Nome", "Documento", "Contato", "Endereço"], {})
-# Unificada a chave exata para "Valor Compra Un. (R$)" para conversar com a busca da interface
 renderizar_crud(aba_mao_obra, "serv", "servicos.csv", ["Descrição", "Valor Compra Un. (R$)"], {})
 renderizar_crud(aba_materiais, "mat", "materiais.csv", ["Item", "Marca", "Unidade", "Preço Unitário"], {})
 renderizar_crud(aba_veiculos, "vei", "veiculos.csv", ["Modelo", "Placa", "Consumo (Km/L)", "Depreciação Anual Est."], {})
