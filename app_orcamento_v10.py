@@ -31,38 +31,30 @@ class PDFOrcamento(FPDF):
         if self.logo_bytes:
             with open("temp_logo.png", "wb") as f:
                 f.write(self.logo_bytes)
-            # Renderiza a logo na posição X=10, Y=10 com 32mm de largura
             self.image("temp_logo.png", 10, 10, 32)
             if os.path.exists("temp_logo.png"):
                 os.remove("temp_logo.png")
         
-        # Guardar posição Y para alinhar os textos horizontalmente com a logo
         self.set_y(15)
         
         # 2. DADOS DA EMPRESA CENTRALIZADOS
         self.set_font("Helvetica", "B", 12)
-        # Largura total útil da página é 190mm (210mm - 20mm de margens)
-        # Imprime o texto centralizado na folha
         self.cell(0, 6, "Fenix Engenharia e Comercio LTDA", ln=True, align="C")
         self.set_font("Helvetica", "", 9)
         self.cell(0, 5, "PRESTAÇÃO DE SERVIÇOS ELÉTRICOS E ENGENHARIA", ln=True, align="C")
         
-        # 3. WHATSAPP NO CANTO DIREITO (Injetado via posicionamento absoluto na mesma linha)
+        # 3. WHATSAPP NO CANTO DIREITO 
         self.set_y(15)
         self.set_font("Helvetica", "B", 11)
-        # Posiciona a escrita encostada na margem direita (X=160)
         self.set_x(155)
         self.cell(45, 6, "WhatsApp:", ln=True, align="R")
         self.set_x(155)
         self.set_font("Helvetica", "", 11)
         self.cell(45, 5, "(31) 99539-2027", ln=True, align="R")
         
-        # Linha divisória cinza elegante abaixo do cabeçalho triplo
         self.set_draw_color(200, 200, 200)
         self.set_line_width(0.3)
         self.line(10, 36, 200, 36)
-        
-        # Espaçamento para o início do corpo do documento
         self.set_y(45)
 
     def footer(self):
@@ -115,8 +107,7 @@ def salvar_no_github(nome_arquivo_csv, df_novo, sobrescrever=False):
         if isinstance(df_final, pd.DataFrame):
             df_final.to_csv(nome_arquivo_csv, index=False, encoding="utf-8")
         return True
-        
-    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+    except Exception:
         if isinstance(df_novo, pd.DataFrame):
             df_novo.to_csv(nome_arquivo_csv, index=False, encoding="utf-8")
         return False
@@ -143,8 +134,7 @@ def carregar_logo_persistida():
     except Exception:
         pass
     if os.path.exists("logo_local.png"):
-        with open("logo_local.png", "rb") as f:
-            return f.read()
+        with open("logo_local.png", "rb") as f: return f.read()
     return None
 
 # Inicialização de estados
@@ -159,18 +149,14 @@ col_topo1, col_topo2 = st.columns(2)
 with col_topo1:
     st.title("⚡ Painel de Gestão e Orçamentos Elétricos")
     logo_upload = st.file_uploader("Upload e Salvamento da Logo da Empresa (PNG/JPG):", type=["png", "jpg", "jpeg"])
-    
     if logo_upload:
         bytes_da_logo = logo_upload.getvalue()
         st.session_state.logo_bytes = bytes_da_logo
-        with open("logo_local.png", "wb") as f:
-            f.write(bytes_da_logo)
+        with open("logo_local.png", "wb") as f: f.write(bytes_da_logo)
         logo_b64_string = base64.b64encode(bytes_da_logo).decode("utf-8")
         salvar_no_github("logo_persistida.txt", logo_b64_string, sobrescrever=True)
         st.success("Logo salva permanentemente no sistema e no GitHub!")
-    
-    if st.session_state.logo_bytes:
-        st.image(st.session_state.logo_bytes, width=200)
+    if st.session_state.logo_bytes: st.image(st.session_state.logo_bytes, width=200)
 with col_topo2:
     st.image(URL_QRCODE, caption="Fale Conosco no WhatsApp")
 
@@ -204,11 +190,9 @@ with aba_clientes:
     if st.session_state.clientes:
         df_cli = pd.DataFrame(st.session_state.clientes)
         st.dataframe(df_cli, use_container_width=True)
-        
         st.markdown("#### ✏️ Alterar ou Excluir Cliente")
         item_para_gerenciar = st.selectbox("Selecione o Cliente para Modificar:", df_cli["Nome"].tolist(), key="sel_cli")
         idx_cli = df_cli[df_cli["Nome"] == item_para_gerenciar].index
-        
         col_ed1, col_ed2 = st.columns(2)
         with col_ed1:
             novo_contato = st.text_input("Alterar Contato:", value=df_cli.loc[idx_cli, "Contato"].values[0])
@@ -220,13 +204,13 @@ with aba_clientes:
                 df_cli.loc[idx_cli, "Endereço"] = novo_end
                 salvar_no_github("clientes.csv", df_cli, sobrescrever=True)
                 st.session_state.clientes = df_cli.to_dict(orient="records")
-                st.success("Dados do cliente alterados com sucesso!")
+                st.success("Dados do cliente alterados!")
                 st.rerun()
             if st.button("🗑️ Excluir Cliente do Sistema", key="btn_del_cli"):
                 df_cli = df_cli.drop(idx_cli)
                 salvar_no_github("clientes.csv", df_cli, sobrescrever=True)
                 st.session_state.clientes = df_cli.to_dict(orient="records")
-                st.error("Cliente removido permanentemente!")
+                st.error("Cliente removido!")
                 st.rerun()
 
 # ABA - CADASTRO DE VEÍCULOS
@@ -251,11 +235,9 @@ with aba_veiculos:
     if st.session_state.veiculos:
         df_veic = pd.DataFrame(st.session_state.veiculos)
         st.dataframe(df_veic, use_container_width=True)
-        
         st.markdown("#### ✏️ Alterar ou Excluir Veículo")
         veic_para_gerenciar = st.selectbox("Selecione o Veículo pela Placa:", df_veic["Placa"].tolist(), key="sel_veic")
         idx_veic = df_veic[df_veic["Placa"] == veic_para_gerenciar].index
-        
         col_ev1, col_ev2 = st.columns(2)
         with col_ev1:
             novo_custo_km = st.number_input("Alterar Custo por KM (R$):", min_value=0.0, value=float(df_veic.loc[idx_veic, "Custo/Km"].values[0]), step=0.10)
@@ -274,24 +256,24 @@ with aba_veiculos:
                 st.error("Veículo excluído!")
                 st.rerun()
 # ==============================================================================
-# BLOCO 3: SEÇÕES DE CONTROLE DE INVENTÁRIO DE MATERIAIS E MODELOS DE PREÇOS
+# BLOCO 3: ALMOXARIFADO E PORTFÓLIO DE SERVIÇOS COM UNIDADE DE MEDIDA CUSTOMIZADA
 # ==============================================================================
 
 # ABA - CADASTRO DE MATERIAIS
 with aba_materiais:
     st.subheader("🛒 Almoxarifado / Gerenciador de Produtos")
     with st.form("form_catalogo_material", clear_on_submit=True):
-        col_m1, col_m2, col_m3 = st.columns(3)
+        col_m1, col_m2 = st.columns(2)
         with col_m1:
             mat_nome = st.text_input("Nome do Material:")
-        with col_m2:
             mat_marca = st.text_input("Marca / Fabricante:")
-        with col_m3:
+        with col_m2:
+            mat_unidade = st.text_input("Unidade de Medida livre (Ex: UN, m, cx, barra, m²):", placeholder="UN")
             mat_preco = st.number_input("Preço de Custo Padrão (R$):", min_value=0.0, value=0.0, step=5.0)
             
         if st.form_submit_button("💾 Salvar Material"):
             if mat_nome:
-                novo_df = pd.DataFrame([{"Item": mat_nome, "Marca": mat_marca, "Preço Unitário": mat_preco}])
+                novo_df = pd.DataFrame([{"Item": mat_nome, "Marca": mat_marca, "Unidade": mat_unidade if mat_unidade else "UN", "Preço Unitário": mat_preco}])
                 salvar_no_github("materiais.csv", novo_df)
                 st.session_state.materiais = carregar_dados("materiais.csv")
                 st.success(f"'{mat_nome}' adicionado!")
@@ -300,73 +282,75 @@ with aba_materiais:
     if st.session_state.materiais:
         df_mat = pd.DataFrame(st.session_state.materiais)
         st.dataframe(df_mat, use_container_width=True)
-        
-        st.markdown("#### ✏️ Alterar Preço ou Remover Produto")
+        st.markdown("#### ✏️ Alterar Dados ou Remover Produto")
         mat_para_gerenciar = st.selectbox("Selecione o Material para Modificar:", df_mat["Item"].tolist(), key="sel_mat")
         idx_mat = df_mat[df_mat["Item"] == mat_para_gerenciar].index
-        
         col_em1, col_em2 = st.columns(2)
         with col_em1:
-            novo_preco_mat = st.number_input("Alterar Preço de Custo Padrão (R$):", min_value=0.0, value=float(df_mat.loc[idx_mat, "Preço Unitário"].values[0]), step=1.0)
+            novo_un_mat = st.text_input("Alterar Unidade:", value=str(df_mat.loc[idx_mat, "Unidade"].values[0]) if "Unidade" in df_mat.columns else "UN")
+            novo_preco_mat = st.number_input("Alterar Preço (R$):", min_value=0.0, value=float(df_mat.loc[idx_mat, "Preço Unitário"].values[0]))
         with col_em2:
             st.write("")
-            if st.button("📝 Confirmar Alteração de Preço", key="btn_edit_mat"):
+            if st.button("📝 Confirmar Ajustes", key="btn_edit_mat"):
+                df_mat.loc[idx_mat, "Unidade"] = novo_un_mat
                 df_mat.loc[idx_mat, "Preço Unitário"] = novo_preco_mat
                 salvar_no_github("materiais.csv", df_mat, sobrescrever=True)
                 st.session_state.materiais = df_mat.to_dict(orient="records")
-                st.success("Preço do produto updated com sucesso!")
                 st.rerun()
-            if st.button("🗑️ Excluir Material do Almoxarifado", key="btn_del_mat"):
+            if st.button("🗑️ Excluir Material", key="btn_del_mat"):
                 df_mat = df_mat.drop(idx_mat)
                 salvar_no_github("materiais.csv", df_mat, sobrescrever=True)
                 st.session_state.materiais = df_mat.to_dict(orient="records")
-                st.error("Material removido do estoque!")
                 st.rerun()
 
-# ABA - MÃO DE OBRA E TIPOS DE SERVIÇOS
+# ABA - MÃO DE OBRA E PORTFÓLIO DE SERVIÇOS
 with aba_mao_obra:
-    st.subheader("🛠️ Tipos de Serviços e Controle de Mão de Obra")
-    with st.form("form_tipo_servico", clear_on_submit=True):
-        col_ts1, col_ts2, col_ts3 = st.columns(3)
-        with col_ts1:
-            ts_nome = st.text_input("Nome do Serviço (Ex: Instalação de Padrão):")
-        with col_ts2:
-            ts_tipo = st.selectbox("Modelo de Cobrança Padrão:", ["Por Ponto Elétrico", "Por Hora Trabalhada", "Valor Fixo"])
-        with col_ts3:
-            ts_preco = st.number_input("Preço Base Referencial (R$):", min_value=0.0, value=100.0)
+    st.subheader("🛠️ Portfólio Detalhado de Serviços")
+    with st.form("form_novo_servico_detalhado", clear_on_submit=True):
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            ts_qtd = st.number_input("Quantidade:", min_value=0.0, value=1.0, step=1.0)
+            ts_desc = st.text_input("Descrição do Serviço:")
+        with col_s2:
+            ts_unidade = st.text_input("Unidade de Medida livre (Ex: UN, h, m, pc, kit, diária):", placeholder="UN")
+            ts_compra = st.number_input("Valor de Compra (Preço Unitário R$):", min_value=0.0, value=0.0, step=50.0)
             
-        if st.form_submit_button("💾 Salvar Tipo de Serviço"):
-            if ts_nome:
-                novo_df = pd.DataFrame([{"Serviço": ts_nome, "Tipo Cobrança": ts_tipo, "Preço Base": ts_preco}])
-                salvar_no_github("servicos.csv", novo_df)
+        if st.form_submit_button("💾 Salvar Serviço no GitHub"):
+            if ts_desc:
+                ts_total_linha = ts_qtd * ts_compra
+                novo_serv_df = pd.DataFrame([{
+                    "Quantidade": ts_qtd, "Descrição": ts_desc, "Unidade": ts_unidade if ts_unidade else "UN", "Valor Compra Un. (R$)": ts_compra, "Total Bruto (R$)": ts_total_linha
+                }])
+                salvar_no_github("servicos.csv", novo_serv_df)
                 st.session_state.servicos = carregar_dados("servicos.csv")
-                st.success("Serviço registrado!")
+                st.success("Serviço salvo!")
                 st.rerun()
 
     if st.session_state.servicos:
         df_serv = pd.DataFrame(st.session_state.servicos)
         st.dataframe(df_serv, use_container_width=True)
-        
-        st.markdown("#### ✏️ Alterar Valores ou Remover Tipo de Serviço")
-        serv_para_gerenciar = st.selectbox("Selecione o Serviço para Modificar:", df_serv["Serviço"].tolist(), key="sel_serv")
-        idx_serv = df_serv[df_serv["Serviço"] == serv_para_gerenciar].index
-        
+        st.markdown("#### ✏️ Alterar ou Excluir Serviço")
+        serv_para_gerenciar = st.selectbox("Selecione o Serviço para Modificar:", df_serv["Descrição"].tolist(), key="sel_serv")
+        idx_serv = df_serv[df_serv["Descrição"] == serv_para_gerenciar].index
         col_es1, col_es2 = st.columns(2)
         with col_es1:
-            novo_preco_serv = st.number_input("Alterar Preço Base Referencial (R$):", min_value=0.0, value=float(df_serv.loc[idx_serv, "Preço Base"].values[0]), step=10.0)
+            novo_un_serv = st.text_input("Alterar Unidade do Serviço:", value=str(df_serv.loc[idx_serv, "Unidade"].values[0]))
+            novo_qtd_serv = st.number_input("Alterar Qtd:", min_value=0.0, value=float(df_serv.loc[idx_serv, "Quantidade"].values[0]))
+            novo_preco_serv = st.number_input("Alterar Valor Unitário (R$):", min_value=0.0, value=float(df_serv.loc[idx_serv, "Valor Compra Un. (R$)"].values[0]))
         with col_es2:
             st.write("")
-            if st.button("📝 Confirmar Alteração de Valor Base", key="btn_edit_serv"):
-                df_serv.loc[idx_serv, "Preço Base"] = novo_preco_serv
+            if st.button("📝 Confirmar Mudanças", key="btn_edit_serv"):
+                df_serv.loc[idx_serv, "Unidade"] = novo_un_serv
+                df_serv.loc[idx_serv, "Quantidade"] = novo_qtd_serv
+                df_serv.loc[idx_serv, "Valor Compra Un. (R$)"] = novo_preco_serv
+                df_serv.loc[idx_serv, "Total Bruto (R$)"] = novo_qtd_serv * novo_preco_serv
                 salvar_no_github("servicos.csv", df_serv, sobrescrever=True)
                 st.session_state.servicos = df_serv.to_dict(orient="records")
-                st.success("Valor base do serviço atualizado!")
                 st.rerun()
-            if st.button("🗑️ Excluir Tipo de Serviço do Portfólio", key="btn_del_serv"):
+            if st.button("🗑️ Excluir Serviço", key="btn_del_serv"):
                 df_serv = df_serv.drop(idx_serv)
                 salvar_no_github("servicos.csv", df_serv, sobrescrever=True)
                 st.session_state.servicos = df_serv.to_dict(orient="records")
-                st.error("Serviço removido!")
                 st.rerun()
 # ==============================================================================
 # BLOCO 4: ORÇAMENTO POR PONTO E NOVA ABA DE CÁLCULO DE PREÇO (COM PDF)
@@ -380,8 +364,6 @@ t_obs = ler_arquivo_txt("observacoes.txt", "Sem alteração estrutural.")
 # ─── 1. NOVA ABA: CÁLCULO DE PREÇO GERAL ───
 with aba_calc_preco:
     st.subheader("📊 Painel de Cálculo Analítico de Preços")
-    st.markdown("Calcule o preço base do projeto somando custos operacionais de forma rápida.")
-    
     col_cp1, col_cp2 = st.columns(2)
     with col_cp1:
         cp_mao_obra = st.number_input("Custo de Mão de Obra Estimado (R$):", min_value=0.0, value=1000.0, step=100.0)
@@ -419,8 +401,6 @@ with aba_orc_ponto:
             endereco_disp = st.text_input("Endereço (Manual):", key="man_end_p")
             
         orc_descricao = st.text_area("Escopo do serviço por ponto:")
-        
-        st.markdown("### 🧮 Cálculo da Empreitada por Pontos")
         op_valor_ponto = st.number_input("Valor por Ponto Elétrico (R$):", min_value=0.0, value=120.0, step=10.0)
         op_qtd_pontos = st.number_input("Quantidade de Pontos Totais:", min_value=0.0, value=10.0, step=1.0)
         mo_total_v = op_valor_ponto * op_qtd_pontos
@@ -487,7 +467,6 @@ with aba_orc_ponto:
     rm4.metric("Impostos", f"R$ {impostos_finais:.2f}")
     rm5.metric("PREÇO FINAL", f"R$ {preco_final:.2f}", delta=f"- R$ {desc_v:.2f}" if desc_v > 0 else None)
 
-    # Conversor FPDF aplicando o cabeçalho triplo ajustado
     pdf = PDFOrcamento(logo_bytes=st.session_state.logo_bytes)
     pdf.add_page()
     pdf.set_font("Helvetica", "", 11)
@@ -503,7 +482,7 @@ with aba_orc_ponto:
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 8, f"SERVICO: Orcamento por Ponto Elétrico ({int(op_qtd_pontos)} pontos)", ln=True)
     pdf.set_font("Helvetica", "", 10)
-    pdf.multi_cell(0, 6, f"Escopo Tecnico:\n{orc_descricao if orc_descricao else 'Execucao conforme levantamento de pontos.'}")
+    pdf.multi_cell(0, 6, f"Escopo Técnico:\n{orc_descricao if orc_descricao else 'Execucao conforme levantamento de pontos.'}")
     pdf.ln(5)
 
     pdf.set_font("Helvetica", "B", 12)
