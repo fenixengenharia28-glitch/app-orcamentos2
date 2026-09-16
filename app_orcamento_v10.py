@@ -273,15 +273,15 @@ with aba_orc_geral:
             custo_transporte = (km_r / cons_carro) * preco_combustivel
             depreciacao_veiculo_proporcional = (dep_anual / 365)
 # ==============================================================================
-# BLOCO 8: ENGENHARIA FINANCEIRA - DESCONTO COMERCIAL EM PORCENTAGEM
+# BLOCO 8: ENGENHARIA FINANCEIRA - REMOÇÃO CRUCIAL DA SINTAXE INVÁLIDA (FIXED)
 # ==============================================================================
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
-        # REQUISITO ATUALIZADO: Modificado o input comercial para receber o Desconto em Porcentagem (%)
         desconto_comercial_pc = st.number_input("Desconto Comercial Concedido (%):", min_value=0.0, value=0.0, step=1.0)
-        desconto_ सविता_pc = desconto_avista_pc = st.number_input("Desconto Adicional para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
+        # CORREÇÃO DEFINITIVA DA LINHA 282: Limpeza de toda e qualquer string corrompida de outro alfabeto
+        desconto_avista_pc = st.number_input("Desconto Adicional para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
 
-    # Processamento dos somatórios com as regras de diluição de frota
+    # Processamento analítico unificado de custos
     custo_bruto_materiais = sum([item["Total"] for item in st.session_state.materiais_orcamento])
     custo_total_servicos_normais = sum([item["Total"] for item in st.session_state.servicos_orcamento if not item["Bônus"]])
     valor_total_bonus_exibicao = sum([item["Total"] for item in st.session_state.servicos_orcamento if item["Bônus"]])
@@ -289,11 +289,10 @@ with aba_orc_geral:
     total_custos_frota_diluiveis = custo_transporte + depreciacao_veiculo_proporcional + margem_manutencao_veiculo
     valor_imposto_real = (custo_total_servicos_normais + custo_bruto_materiais + custo_transporte) * (imposto_pc / 100)
     
+    # Injeta a somatória automobilística e fiscal na mão de obra
     custo_final_servicos_com_imposto = custo_total_servicos_normais + valor_imposto_real + total_custos_frota_diluiveis
     
-    # Cálculo base unificado antes do desconto
     subtotal_fechamento_real = custo_final_servicos_com_imposto + custo_bruto_materiais
-    # REQUISITO ATUALIZADO: O desconto em porcentagem é convertido em dinheiro para a dedução e a composição
     valor_desconto_dinheiro = subtotal_fechamento_real * (desconto_comercial_pc / 100)
     
     preco_final_cheio = subtotal_fechamento_real - valor_desconto_dinheiro
@@ -310,13 +309,13 @@ with aba_orc_geral:
     rm2.metric("Materiais Coletados", f"R$ {custo_bruto_materiais:.2f}")
     rm3.metric("VALOR TOTAL FINAL COBRADO", f"R$ {preco_final_cheio:.2f}", delta=f"- R$ {valor_desconto_dinheiro:.2f}" if valor_desconto_dinheiro > 0 else None)
 # ==============================================================================
-# BLOCO 9: DESIGN DO PDF A4 - COMPOSIÇÃO FINANCEIRA COM OS 5 VALORES ATUALIZADOS
+# BLOCO 9: DESIGN DO PDF A4 - COMPOSIÇÃO FINANCEIRA COM OS 5 VALORES DETALHADOS
 # ==============================================================================
     pdf = PDFOrcamento(logo_bytes=st.session_state.logo_bytes)
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     
-    # Dados do Cliente
+    # Seção Dados do Cliente
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "DADOS DO CLIENTE E LOCALIDADE", ln=True)
     pdf.set_font("Helvetica", "", 11)
@@ -326,14 +325,14 @@ with aba_orc_geral:
     pdf.cell(0, 8, f"Endereco da Execucao: {endereco_disp}", ln=True)
     pdf.ln(8)
 
-    # Escopo Técnico
+    # Escopo Descritivo
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "ESCOPO TÉCNICO DA PROPOSTA", ln=True)
     pdf.set_font("Helvetica", "", 11)
     pdf.multi_cell(0, 8.5, f"{orc_descricao if orc_descricao else 'Execucao conforme escopo acordado.'}")
     pdf.ln(8)
 
-    # Detalhes nominais por extenso (Sem tabelas)
+    # Listagem nominal de itens sem planilhas
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "DETALHAMENTO NOMINAL DOS ITENS DO PROJETO", ln=True)
     
@@ -367,14 +366,13 @@ with aba_orc_geral:
     
     pdf.ln(8)
     
-    # Composição Financeira com os 5 valores separados e o desconto calculado
+    # Composição com as 5 categorias estruturadas
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "COMPOSIÇÃO FINANCEIRA DO PROJETO", ln=True)
     pdf.set_font("Helvetica", "", 11)
     pdf.cell(0, 8, f"Mao de Obra: R$ {custo_final_servicos_com_imposto:.2f}", ln=True)
     pdf.cell(0, 8, f"Bonus: R$ {valor_total_bonus_exibicao:.2f}", ln=True)
     pdf.cell(0, 8, f"Material: R$ {custo_bruto_materiais:.2f}", ln=True)
-    # Exibe o valor do desconto convertido em dinheiro de forma limpa
     pdf.cell(0, 8, f"Desconto: R$ {valor_desconto_dinheiro:.2f}", ln=True)
     pdf.cell(0, 8, f"Valor Total: R$ {preco_final_cheio:.2f}", ln=True)
 # ==============================================================================
@@ -427,7 +425,7 @@ with aba_orc_geral:
     with col_d2:
         st.link_button("💬 Enviar via WhatsApp", LINK_WHATSAPP)
 # ==============================================================================
-# BLOCO 11: SISTEMA CRUD COMPLETO COM CORREÇÃO DE CHAVE UNHASHABLE 
+# BLOCO 11: SISTEMA CRUD COMPLETO COM SUPORTE OPERACIONAL INTEGRAL
 # ==============================================================================
 def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio):
     with nome_aba:
@@ -435,7 +433,6 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
         dados_atuais = carregar_dados(nome_arquivo_csv)
         df_crud = pd.DataFrame(dados_atuais) if dados_atuais else pd.DataFrame(columns=campos_lista)
         
-        # Coleta o primeiro termo da lista para usar como chave string indexável pura
         chave_busca = campos_lista[0]
         
         st.markdown("#### ➕ Adicionar / Modificar Registro")
