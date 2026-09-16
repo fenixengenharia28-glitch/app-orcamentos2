@@ -1,5 +1,5 @@
 # ==============================================================================
-# BLOCO 1: IMPORTAÇÕES, CONEXÃO COM GITHUB E MOTOR DE MONTAGEM DO PDF EM A4
+# BLOCO 1: IMPORTAÇÕES, DEPENDÊNCIAS E CONFIGURAÇÃO DA PÁGINA
 # ==============================================================================
 import streamlit as st
 import pandas as pd
@@ -9,18 +9,20 @@ import os
 from fpdf import FPDF
 from io import BytesIO
 
-# Configuração da página web
+# Configuração da interface do Streamlit
 st.set_page_config(
     page_title="Gestão de Orçamentos Elétricos Integrada", 
     page_icon="⚡", 
     layout="wide"
 )
 
+# Links e endpoints de comunicação
 WHATSAPP_NUMERO = "5531995392027"
 LINK_WHATSAPP = f"https://wa.me{WHATSAPP_NUMERO}"
 URL_QRCODE = f"https://googleapis.com{LINK_WHATSAPP}&choe=UTF-8"
-
-# ─── CLASSE DO PDF RECONFIGURADA PARA PREENCHER TOTALMENTE A FOLHA A4 ───
+# ==============================================================================
+# BLOCO 2: CLASSE DO PDF RECONFIGURADA PARA PREENCHER TOTALMENTE A FOLHA A4
+# ==============================================================================
 class PDFOrcamento(FPDF):
     def __init__(self, logo_bytes=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -37,7 +39,7 @@ class PDFOrcamento(FPDF):
         
         self.set_y(8)
         
-        # 2. DADOS CENTRALIZADOS COM DIVISÃO DIMINUÍDA (APENAS 2 LINHAS DE ENDEREÇO)
+        # 2. DADOS CENTRALIZADOS COM INCLUSÃO DO E-MAIL REQUERIDO
         self.set_font("Helvetica", "B", 12)  
         self.cell(0, 5, "FENIX ENGENHARIA E COMERCIO LTDA", ln=True, align="C")
         
@@ -46,13 +48,13 @@ class PDFOrcamento(FPDF):
         
         self.set_font("Helvetica", "", 8)
         self.cell(0, 4, "Av. Getulio Vargas, nº 671, 9º Andar, Sala 1051, Savassi - Belo Horizonte - MG", ln=True, align="C")
-        self.cell(0, 4, "Cep: 30112-021 / Tel: (31) 99539-2027", ln=True, align="C")
+        self.cell(0, 4, "Cep: 30112-021 / Tel: (31) 99539-2027 / E-mail: fenixengenharia28@gmail.com", ln=True, align="C")
         
-        self.ln(3) # Pequeno salto sutil
+        self.ln(3) 
         self.set_font("Helvetica", "B", 10)
         self.cell(0, 5, "PRESTAÇÃO DE SERVIÇOS ELÉTRICOS E ENGENHARIA", ln=True, align="C")
         
-        # 3. QR CODE DO WHATSAPP INJETADO NO CANTO DIREITO DO CABEÇALHO
+        # 3. QR CODE DO WHATSAPP FIXADO NO CANTO DIREITO DO CABEÇALHO
         try:
             qr_res = requests.get(URL_QRCODE, timeout=5)
             if qr_res.status_code == 200:
@@ -80,7 +82,7 @@ class PDFOrcamento(FPDF):
         self.set_font("Helvetica", "I", 8)
         self.cell(0, 10, f"FENIX ENGENHARIA E COMERCIO LTDA - Página {self.page_no()}/{{nb}}", align="C")
 # ==============================================================================
-# BLOCO 2: SINCRONIZAÇÃO DE BANCO DE DADOS COM O REPOSITÓRIO DO GITHUB
+# BLOCO 3: SINCRONIZAÇÃO DE BANCO DE DADOS COM O REPOSITÓRIO DO GITHUB
 # ==============================================================================
 def salvar_no_github(nome_arquivo_csv, df_novo, sobrescrever=False):
     try:
@@ -142,7 +144,9 @@ def salvar_no_github(nome_arquivo_csv, df_novo, sobrescrever=False):
         if isinstance(df_novo, pd.DataFrame):
             df_novo.to_csv(nome_arquivo_csv, index=False, encoding="utf-8")
         return False
-
+# ==============================================================================
+# BLOCO 4: CARREGAMENTO DE DADOS HISTÓRICOS E LOGO DA SESSÃO
+# ==============================================================================
 def carregar_dados(nome_arquivo_csv):
     if os.path.exists(nome_arquivo_csv):
         try:
@@ -176,14 +180,16 @@ def carregar_logo_persistida():
         with open("logo_local.png", "rb") as f: return f.read()
     return None
 
-# Carregamento síncrono inicial dos dicionários
+# Estado persistente da aplicação
 if 'clientes' not in st.session_state: st.session_state.clientes = carregar_dados("clientes.csv")
 if 'veiculos' not in st.session_state: st.session_state.veiculos = carregar_dados("veiculos.csv")
 if 'materiais' not in st.session_state: st.session_state.materiais = carregar_dados("materiais.csv")
 if 'servicos' not in st.session_state: st.session_state.servicos = carregar_dados("servicos.csv")
 if 'materiais_orcamento' not in st.session_state: st.session_state.materiais_orcamento = []
 if 'logo_bytes' not in st.session_state: st.session_state.logo_bytes = carregar_logo_persistida()
-
+# ==============================================================================
+# BLOCO 5: INTERFACE GRÁFICA SUPERIOR E GERENCIAMENTO DE TABS
+# ==============================================================================
 col_topo1, col_topo2 = st.columns(2)
 with col_topo1:
     st.markdown("### FENIX ENGENHARIA E COMERCIO LTDA")
@@ -199,14 +205,13 @@ with col_topo1:
 with col_topo2:
     st.image(URL_QRCODE, caption="Fale Conosco no WhatsApp")
 
+# Criação das abas navegacionais do painel
 aba_orc_ponto, aba_calc_preco, aba_clientes, aba_mao_obra, aba_materiais, aba_veiculos = st.tabs([
     "📍 Orçamento por Ponto", "📊 Cálculo de Preço", "👥 Cadastro de Clientes", "⏱️ Mão de Obra & Serviços", "🛒 Cadastro de Materiais", "🚚 Cadastro de Veículos"
 ])
 # ==============================================================================
-# BLOCO 3: CADASTRO DE CLIENTES E ABA DE VEÍCULOS COM CALCULADORA INTERNA
+# BLOCO 6: GERENCIAMENTO DE CLIENTES E VEÍCULOS COM CALCULADORA INTERNA
 # ==============================================================================
-
-# ABA - CADASTRO DE CLIENTES
 with aba_clientes:
     st.subheader("👥 Cadastro e Modificação de Clientes")
     with st.form("form_cliente", clear_on_submit=True):
@@ -227,10 +232,8 @@ with aba_clientes:
                 st.rerun()
 
     if st.session_state.clientes:
-        df_cli = pd.DataFrame(st.session_state.clientes)
-        st.dataframe(df_cli, use_container_width=True)
+        st.dataframe(pd.DataFrame(st.session_state.clientes), use_container_width=True)
 
-# ABA - GESTÃO DE VEÍCULOS SIMPLIFICADA COM CALCULADORA DE COMBUSTÍVEL
 with aba_veiculos:
     st.subheader("🚚 Cadastro de Veículos e Calculadora de Combustível")
     col_v_esq, col_v_dir = st.columns(2)
@@ -254,7 +257,9 @@ with aba_veiculos:
                     st.session_state.veiculos = carregar_dados("veiculos.csv")
                     st.success(f"Veículo '{v_modelo}' arquivado!")
                     st.rerun()
-
+# ==============================================================================
+# BLOCO 7: CALCULADORA DE COMBUSTÍVEL NA MESMA TAB E LISTAGEM DE FROTA
+# ==============================================================================
     with col_v_dir:
         st.markdown("#### 🧮 Calculadora Rápida de Combustível")
         if st.session_state.veiculos:
@@ -274,10 +279,8 @@ with aba_veiculos:
         st.markdown("### Frota Ativa")
         st.dataframe(pd.DataFrame(st.session_state.veiculos), use_container_width=True)
 # ==============================================================================
-# BLOCO 4: ALMOXARIFADO E PORTFÓLIO DE SERVIÇOS COM UNIDADE DE MEDIDA CUSTOMIZADA
+# BLOCO 8: SEÇÕES DE ESTOQUE (ALMOXARIFADO) E PORTFÓLIO DE MÃO DE OBRA
 # ==============================================================================
-
-# ABA - CADASTRO DE MATERIAIS
 with aba_materiais:
     st.subheader("🛒 Almoxarifado / Gerenciador de Produtos")
     with st.form("form_catalogo_material", clear_on_submit=True):
@@ -298,10 +301,8 @@ with aba_materiais:
                 st.rerun()
 
     if st.session_state.materiais:
-        df_mat = pd.DataFrame(st.session_state.materiais)
-        st.dataframe(df_mat, use_container_width=True)
+        st.dataframe(pd.DataFrame(st.session_state.materiais), use_container_width=True)
 
-# ABA - MÃO DE OBRA E PORTFÓLIO DE SERVIÇOS
 with aba_mao_obra:
     st.subheader("🛠️ Portfólio Detalhado de Serviços")
     with st.form("form_novo_servico_detalhado", clear_on_submit=True):
@@ -325,18 +326,15 @@ with aba_mao_obra:
                 st.rerun()
 
     if st.session_state.servicos:
-        df_serv = pd.DataFrame(st.session_state.servicos)
-        st.dataframe(df_serv, use_container_width=True)
+        st.dataframe(pd.DataFrame(st.session_state.servicos), use_container_width=True)
 # ==============================================================================
-# BLOCO 5: CÁLCULOS ANALÍTICOS, LOGÍSTICA COMPLETA E GERAÇÃO EXPANDIDA DO PDF A4
+# BLOCO 9: ABA DE PRECIFICAÇÃO E ENTRADA DOS DADOS OPERACIONAIS DO ORÇAMENTO
 # ==============================================================================
-
 def ler_arquivo_txt(n, d): return open(n, "r", encoding="utf-8").read() if os.path.exists(n) else d
 t_pag = ler_arquivo_txt("pagamento.txt", "A combinar.")
 t_gar = ler_arquivo_txt("garantia.txt", "90 dias.")
 t_obs = ler_arquivo_txt("observacoes.txt", "Sem alteração estrutural.")
 
-# ─── 1. ABA: CÁLCULO DE PREÇO GERAL ───
 with aba_calc_preco:
     st.subheader("📊 Painel de Cálculo Analítico de Preços")
     col_cp1, col_cp2 = st.columns(2)
@@ -358,7 +356,6 @@ with aba_calc_preco:
     cpm2.metric("Margem Adicionada", f"R$ {lucro_calculado:.2f}")
     cpm3.metric("PREÇO DE VENDA SUGERIDO", f"R$ {preco_venda_sugerido:.2f}")
 
-# ─── 2. ABA: ORÇAMENTO DETALHADO POR PONTO ───
 with aba_orc_ponto:
     st.subheader("📍 Montagem de Orçamento Técnico por Ponto Elétrico")
     col_op1, col_op2 = st.columns(2)
@@ -395,7 +392,9 @@ with aba_orc_ponto:
             st.caption(f"Custo de Combustível Calculado: R$ {custo_transporte:.2f}")
         else:
             custo_transporte = st.number_input("Custo de Logística Manual (R$):", min_value=0.0, value=0.0, key="des_p")
-
+# ==============================================================================
+# BLOCO 10: INCLUSÃO DE INSUMOS E FECHAMENTO DO LAYOUT DO PDF EM FOLHA CHEIA A4
+# ==============================================================================
     with col_op2:
         st.markdown("### 2. Materiais Aplicados nos Pontos")
         if st.session_state.materiais:
@@ -448,54 +447,65 @@ with aba_orc_ponto:
     rm4.metric("Impostos", f"R$ {impostos_finais:.2f}")
     rm5.metric("PREÇO FINAL", f"R$ {preco_final:.2f}", delta=f"- R$ {desc_v:.2f}" if desc_v > 0 else None)
 
-    # ─── MONTAGEM EXPANDIDA DO PDF PARA PREENCHER A FOLHA A4 INTEIRA ───
     pdf = PDFOrcamento(logo_bytes=st.session_state.logo_bytes)
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     
-    # Linhas de dados espaçadas em 7mm e 8mm (Aproveitamento total vertical)
     pdf.set_font("Helvetica", "B", 12)
-    pdf.cell(0, 9, "DADOS DO CLIENTE E LOCALIDADE", ln=True)
+    pdf.cell(0, 10, "DADOS DO CLIENTE E LOCALIDADE", ln=True)
     pdf.set_font("Helvetica", "", 11)
-    pdf.cell(0, 7, f"Cliente / Razao Social: {cli_sel}", ln=True)
-    pdf.cell(0, 7, f"Contato Direto: {contato_disp}", ln=True)
-    pdf.cell(0, 7, f"Endereco da Execucao: {endereco_disp}", ln=True)
-    pdf.ln(6)
-
-    pdf.set_font("Helvetica", "B", 12)
-    pdf.cell(0, 9, f"ESCOPO TÉCNICO DA PROPOSTA ({int(op_qtd_pontos)} Pontos)", ln=True)
-    pdf.set_font("Helvetica", "", 11)
-    pdf.multi_cell(0, 7, f"{orc_descricao if orc_descricao else 'Execucao e dimensionamento de infraestrutura conforme levantamento de pontos elétricos.'}")
-    pdf.ln(6)
-
-    pdf.set_font("Helvetica", "B", 12)
-    pdf.cell(0, 9, "REPARTIÇÃO FINANCEIRA DO PROJETO", ln=True)
-    pdf.set_font("Helvetica", "", 11)
-    pdf.cell(0, 7, f"- Mao de Obra Especializada: R$ {mo_total_v:.2f}", ln=True)
-    pdf.cell(0, 7, f"- Fornecimento de Materiais com Margem: R$ {total_m_lucro:.2f}", ln=True)
-    pdf.cell(0, 7, f"- Despesas Unificadas de Logistica/Combustivel: R$ {custo_transporte:.2f}", ln=True)
-    pdf.cell(0, 7, f"- Encargos e Tributos Nota Fiscal: R$ {impostos_finais:.2f}", ln=True)
-    if desc_v > 0: pdf.cell(0, 7, f"- Desconto Especial Concedido: - R$ {desc_v:.2f}", ln=True)
-    
-    pdf.ln(3)
-    pdf.set_font("Helvetica", "B", 12)
-    pdf.cell(0, 9, f"VALOR TOTAL DO INVESTIMENTO FENIX: R$ {preco_final:.2f}", ln=True)
+    pdf.cell(0, 8, f"Cliente / Razao Social: {cli_sel}", ln=True)
+    pdf.cell(0, 8, f"Contato Direto: {contato_disp}", ln=True)
+    pdf.cell(0, 8, f"Endereco da Execucao: {endereco_disp}", ln=True)
     pdf.ln(8)
 
-    # Condições Comerciais Expandidas e Injeção do QR Code síncrono
     pdf.set_font("Helvetica", "B", 12)
-    pdf.cell(0, 9, "CONDIÇÕES COMERCIAIS E TERMOS", ln=True)
+    pdf.cell(0, 10, f"ESCOPO TÉCNICO DA PROPOSTA ({int(op_qtd_pontos)} Pontos)", ln=True)
+    pdf.set_font("Helvetica", "", 11)
+    pdf.multi_cell(0, 8, f"{orc_descricao if orc_descricao else 'Execucao e dimensionamento de infraestrutura conforme levantamento de pontos elétricos corporativos.'}")
+    pdf.ln(8)
+
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(0, 10, "DETALHAMENTO ANALÍTICO DE INVESTIMENTO", ln=True)
+    
+    pdf.set_fill_color(240, 240, 240)
+    pdf.cell(130, 9, " Descricao da Despesa do Projeto", border=1, fill=True)
+    pdf.cell(60, 9, " Valor do Investimento", border=1, fill=True, ln=True)
+    
+    pdf.set_font("Helvetica", "", 11)
+    pdf.cell(130, 9, f" Mao de Obra Especializada ({int(op_qtd_pontos)} pontos)", border=1)
+    pdf.cell(60, 9, f" R$ {mo_total_v:.2f}", border=1, ln=True)
+    
+    pdf.cell(130, 9, " Fornecimento de Materiais e Insumos Homologados", border=1)
+    pdf.cell(60, 9, f" R$ {total_m_lucro:.2f}", border=1, ln=True)
+    
+    pdf.cell(130, 9, " Despesas com Transporte, Logistica e Mobilizacao de Equipe", border=1)
+    pdf.cell(60, 9, f" R$ {custo_transporte:.2f}", border=1, ln=True)
+    
+    pdf.cell(130, 9, " Encargos, Tributos Incidentes e Emissao de Nota Fiscal", border=1)
+    pdf.cell(60, 9, f" R$ {impostos_finais:.2f}", border=1, ln=True)
+    
+    if desc_v > 0:
+        pdf.cell(130, 9, " Desconto Comercial Especial Aplicado", border=1)
+        pdf.cell(60, 9, f" - R$ {desc_v:.2f}", border=1, ln=True)
+        
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(130, 9, " VALOR TOTAL DO INVESTIMENTO LIQUIDO", border=1, fill=True)
+    pdf.cell(60, 9, f" R$ {preco_final:.2f}", border=1, fill=True, ln=True)
+    pdf.ln(12)
+
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 10, "CONDIÇÕES COMERCIAIS E TERMOS", ln=True)
     
     y_condicoes = pdf.get_y()
     pdf.set_font("Helvetica", "", 10.5)
-    pdf.multi_cell(135, 6, f"Formas de Pagamento:\n{t_pag}\n\nGarantia dos Serviços:\n{t_gar}\n\nObservacoes Importantes:\n{t_obs}")
+    pdf.multi_cell(135, 6.5, f"Formas de Pagamento:\n{t_pag}\n\nGarantia dos Serviços:\n{t_gar}\n\nObservacoes Importantes:\n{t_obs}")
     
     try:
         qr_res = requests.get(URL_QRCODE, timeout=5)
         if qr_res.status_code == 200:
             with open("temp_pdf_qr.png", "wb") as f:
                 f.write(qr_res.content)
-            # QR Code posicionado na lateral inferior direita preenchendo a folha
             pdf.image("temp_pdf_qr.png", 158, y_condicoes, 38, 38)
             pdf.set_y(y_condicoes + 39)
             pdf.set_x(158)
