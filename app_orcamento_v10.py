@@ -1,5 +1,5 @@
 # ==============================================================================
-# BLOCO 1: IMPORTAÇÕES, ENGINE DO GITHUB, SALVAMENTO DE LOGO E CONFIGURAÇÃO DO PDF
+# BLOCO 1: IMPORTAÇÕES, ENGINE DO GITHUB, PERSISTÊNCIA E NOVO CABEÇALHO COMPLETO PDF
 # ==============================================================================
 import streamlit as st
 import pandas as pd
@@ -20,7 +20,7 @@ WHATSAPP_NUMERO = "5531995392027"
 LINK_WHATSAPP = f"https://wa.me{WHATSAPP_NUMERO}"
 URL_QRCODE = f"https://googleapis.com{LINK_WHATSAPP}&choe=UTF-8"
 
-# ─── CLASSE DO PDF COM DESIGN DE CABEÇALHO EM TRÊS SEÇÕES ───
+# ─── CLASSE DO PDF COM DESIGN DE CABEÇALHO EM TRÊS SEÇÕES DADOS COMPLETOS FENIX ───
 class PDFOrcamento(FPDF):
     def __init__(self, logo_bytes=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -31,31 +31,33 @@ class PDFOrcamento(FPDF):
         if self.logo_bytes:
             with open("temp_logo.png", "wb") as f:
                 f.write(self.logo_bytes)
-            self.image("temp_logo.png", 10, 10, 32)
+            self.image("temp_logo.png", 10, 8, 32)
             if os.path.exists("temp_logo.png"):
                 os.remove("temp_logo.png")
         
-        self.set_y(15)
+        self.set_y(10)
         
-        # 2. DADOS DA EMPRESA CENTRALIZADOS
-        self.set_font("Helvetica", "B", 12)
-        self.cell(0, 6, "Fenix Engenharia e Comercio LTDA", ln=True, align="C")
-        self.set_font("Helvetica", "", 9)
-        self.cell(0, 5, "PRESTAÇÃO DE SERVIÇOS ELÉTRICOS E ENGENHARIA", ln=True, align="C")
+        # 2. DADOS DA EMPRESA CENTRALIZADOS (RAZÃO SOCIAL, CNPJ E ENDEREÇO DA SAVASSI)
+        self.set_font("Helvetica", "B", 11)
+        self.cell(0, 5, "Fenix Engenharia e Comercio LTDA / CNPJ: 52.769.953/0001-12", ln=True, align="C")
+        self.set_font("Helvetica", "", 8)
+        self.cell(0, 4, "Avenida Getulio Vargas, nº 671, 9º Andar, Sala 1051, Bairro Savassi", ln=True, align="C")
+        self.cell(0, 4, "Cidade de Belo Horizonte - MG, Cep: 30112-021", ln=True, align="C")
         
         # 3. WHATSAPP NO CANTO DIREITO 
-        self.set_y(15)
-        self.set_font("Helvetica", "B", 11)
+        self.set_y(10)
+        self.set_font("Helvetica", "B", 10)
         self.set_x(155)
-        self.cell(45, 6, "WhatsApp:", ln=True, align="R")
+        self.cell(45, 5, "WhatsApp:", ln=True, align="R")
         self.set_x(155)
-        self.set_font("Helvetica", "", 11)
-        self.cell(45, 5, "(31) 99539-2027", ln=True, align="R")
+        self.set_font("Helvetica", "", 10)
+        self.cell(45, 4, "(31) 99539-2027", ln=True, align="R")
         
+        # Linha divisória cinza reposicionada abaixo do endereço expandido
         self.set_draw_color(200, 200, 200)
         self.set_line_width(0.3)
-        self.line(10, 36, 200, 36)
-        self.set_y(45)
+        self.line(10, 32, 200, 32)
+        self.set_y(40)
 
     def footer(self):
         self.set_y(-25)
@@ -524,20 +526,15 @@ with aba_orc_ponto:
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 8, "CONDIÇÕES COMERCIAIS", ln=True)
     
-    # Armazena a posição Y atual para renderizar o QR Code paralelamente aos textos
     y_condicoes = pdf.get_y()
-    
     pdf.set_font("Helvetica", "", 10)
-    # Define largura limitada (135mm) para o texto não invadir a área do QR Code
     pdf.multi_cell(135, 5, f"Formas de Pagamento:\n{t_pag}\n\nGarantia:\n{t_gar}\n\nObservacoes:\n{t_obs}")
     
-    # Faz o download síncrono do QR Code da API para embutir no arquivo PDF
     try:
         qr_res = requests.get(URL_QRCODE, timeout=5)
         if qr_res.status_code == 200:
             with open("temp_pdf_qr.png", "wb") as f:
                 f.write(qr_res.content)
-            # Renderiza o QR Code no canto inferior direito da folha (X=160, Y baseado nas condições)
             pdf.image("temp_pdf_qr.png", 160, y_condicoes, 35, 35)
             pdf.set_y(y_condicoes + 36)
             pdf.set_x(160)
