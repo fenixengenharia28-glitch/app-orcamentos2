@@ -170,7 +170,7 @@ aba_orc_geral, aba_clientes, aba_mao_obra, aba_materiais, aba_veiculos = st.tabs
     "📋 Orçamento Geral", "👥 Gestão de Clientes", "🛠️ Gestão de Serviços", "🛒 Almoxarifado", "🚚 Frota e Logística"
 ])
 # ==============================================================================
-# BLOCO 6: CENTRAL DO ORÇAMENTO - CLIENTES COM CPF/CNPJ E ESCOPO DA MÃO DE OBRA
+# BLOCO 6: CENTRAL DO ORÇAMENTO - PARTE 1: SELEÇÃO DE CLIENTE E PRESTAÇÕES
 # ==============================================================================
 with aba_orc_geral:
     st.subheader("📋 Central Única de Emissão de Orçamentos")
@@ -204,7 +204,7 @@ with aba_orc_geral:
             
             if st.button("➕ Adicionar Serviço ao Escopo"):
                 linha_filtrada = df_serv_disp[df_serv_disp["Descrição"] == servico_escolhido]
-                preco_unitario_servico = float(linha_filtrada["Valor Compra Un. (R$)"].iloc[0])
+                preco_unitario_servico = float(linha_filtrada["Valor Compra Un. (R$)"].iloc)
                 preco_calculado_linha = preco_unitario_servico * qtd_servico_solicitado
                 
                 st.session_state.servicos_orcamento.append({
@@ -224,7 +224,7 @@ with aba_orc_geral:
                 st.session_state.servicos_orcamento = []
                 st.rerun()
 # ==============================================================================
-# BLOCO 7: CENTRAL DO ORÇAMENTO - MATERIAIS E ESPECIFICAÇÕES AUTOMOTIVAS
+# BLOCO 7: CENTRAL DO ORÇAMENTO - PARTE 2: PRODUTOS E PREPARAÇÃO LOGÍSTICA
 # ==============================================================================
     with col_o2:
         st.markdown("#### 🛒 Inserir Materiais Necessários")
@@ -263,40 +263,40 @@ with aba_orc_geral:
             v_sel = st.selectbox("Selecione o Veículo Alocado para a Obra:", lista_v)
             km_r = st.number_input("Distância em KM (Ida + Volta):", min_value=0.0, value=20.0)
             preco_combustivel = st.number_input("Preço do Combustível (R$/L):", min_value=0.0, value=5.90)
-            
-            # REQUISITO: Margem extra para manutenção preventiva do veículo incluída
             margem_manutencao_veiculo = st.number_input("Margem de Custo para Manutenção de Frota (R$):", min_value=0.0, value=50.0)
             
             idx = lista_v.index(v_sel)
             cons_carro = float(df_v_orc.iloc[idx]["Consumo (Km/L)"])
             dep_anual = float(df_v_orc.iloc[idx]["Depreciação Anual Est."])
             
-            # Extração analítica dos fatores diluíveis
             custo_transporte = (km_r / cons_carro) * preco_combustivel
             depreciacao_veiculo_proporcional = (dep_anual / 365)
         else:
             margem_manutencao_veiculo = 0.0
-            st.info("Nenhum veículo cadastrado. Custos de frota zerados.")
 # ==============================================================================
-# BLOCO 8: ENGENHARIA FINANCEIRA - DILUIÇÃO TOTAL DE LOGÍSTICA E TAXAS
+# BLOCO 8: ENGENHARIA FINANCEIRA - CÁLCULOS ANALÍTICOS DE PROPOSTA
 # ==============================================================================
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
-        desconto_avista_pc = st.number_input("Desconto para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
+        desconto_v_manual = st.number_input("Valor de Desconto Promocional Concedido (R$):", min_value=0.0, value=0.0)
+        desconto_avista_pc = st.number_input("Desconto Adicional para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
 
-    # Processamento dos somatórios com as novas regras de diluição
+    # Processamento dos somatórios com as regras de diluição
     custo_bruto_materiais = sum([item["Total"] for item in st.session_state.materiais_orcamento])
-    custo_total_servicos_exibicao = sum([item["Total"] for item in st.session_state.servicos_orcamento])
-    valor_total_deducao_bonus = sum([item["Total"] for item in st.session_state.servicos_orcamento if item["Bônus"]])
     
-    # Cálculo unificado de taxas reais da Fenix
-    valor_imposto_real = (custo_total_servicos_exibicao + custo_bruto_materiais + custo_transporte) * (imposto_pc / 100)
+    # REQUISITO: Valores de Mão de Obra normais e Bônus passam a ser mapeados separadamente
+    custo_total_servicos_normais = sum([item["Total"] for item in st.session_state.servicos_orcamento if not item["Bônus"]])
+    valor_total_bonus_exibicao = sum([item["Total"] for item in st.session_state.servicos_orcamento if item["Bônus"]])
     
-    # REQUISITO: Combustível, depreciação e manutenção preventiva são unificados e embutidos na Mão de Obra
+    # Cálculo das taxas reais Fenix diluídas
+    valor_imposto_real = (custo_total_servicos_normais + custo_bruto_materiais + custo_transporte) * (imposto_pc / 100)
     total_custos_frota_diluiveis = custo_transporte + depreciacao_veiculo_proporcional + margem_manutencao_veiculo
-    custo_final_servicos_com_imposto = custo_total_servicos_exibicao + valor_imposto_real + total_custos_frota_diluiveis
     
-    preco_final_cheio = (custo_final_servicos_com_imposto + custo_bruto_materiais) - valor_total_deducao_bonus
+    # Mão de obra absorve impostos, combustível, depreciação e manutenção preventiva
+    custo_final_servicos_com_imposto = custo_total_servicos_normais + valor_imposto_real + total_custos_frota_diluiveis
+    
+    # REQUISITO: O bônus entra com o seu valor, mas gera dedução direta na composição do fechamento
+    preco_final_cheio = (custo_final_servicos_com_imposto + custo_bruto_materiais) - valor_total_bonus_exibicao - desconto_v_manual
     if preco_final_cheio < 0: preco_final_cheio = 0.0
     
     preco_final_avista = preco_final_cheio * (1 - (desconto_avista_pc / 100))
@@ -306,16 +306,17 @@ with aba_orc_geral:
     st.markdown("---")
     st.markdown("### 📊 Painel Geral de Resumo")
     rm1, rm2, rm3 = st.columns(3)
-    rm1.metric("Mão de Obra (Custos Logísticos Inclusos)", f"R$ {custo_final_servicos_com_imposto:.2f}")
-    rm2.metric("Materiais Separados", f"R$ {custo_bruto_materiais:.2f}")
-    rm3.metric("VALOR LÍQUIDO", f"R$ {preco_final_cheio:.2f}", delta=f"- R$ {valor_total_deducao_bonus:.2f}" if valor_total_deducao_bonus > 0 else None)
+    rm1.metric("Mão de Obra (Custos Diluídos)", f"R$ {custo_final_servicos_com_imposto:.2f}")
+    rm2.metric("Materiais Coletados", f"R$ {custo_bruto_materiais:.2f}")
+    rm3.metric("VALOR INVESTIMENTO FECHADO", f"R$ {preco_final_cheio:.2f}")
 # ==============================================================================
-# BLOCO 9: GERADOR DO PDF NARRATIVO A4 (SEPARAÇÃO MÃO DE OBRA E BÔNUS)
+# BLOCO 9: DESIGN DO PDF A4 - DISCRIMINAÇÃO DOS 5 VALORES EXIGIDOS (SEM PLANILHAS)
 # ==============================================================================
     pdf = PDFOrcamento(logo_bytes=st.session_state.logo_bytes)
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     
+    # Dados do Cliente
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "DADOS DO CLIENTE E LOCALIDADE", ln=True)
     pdf.set_font("Helvetica", "", 11)
@@ -325,52 +326,54 @@ with aba_orc_geral:
     pdf.cell(0, 8, f"Endereco da Execucao: {endereco_disp}", ln=True)
     pdf.ln(8)
 
+    # Escopo Técnico
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "ESCOPO TÉCNICO DA PROPOSTA", ln=True)
     pdf.set_font("Helvetica", "", 11)
     pdf.multi_cell(0, 8.5, f"{orc_descricao if orc_descricao else 'Execucao conforme escopo acordado.'}")
     pdf.ln(8)
 
+    # Detalhamento por extenso sem planilhas
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "DETALHAMENTO NOMINAL DOS ITENS DO PROJETO", ln=True)
     
-    fator_proporcional = custo_final_servicos_com_imposto / custo_total_servicos_exibicao if custo_total_servicos_exibicao > 0 else 1.0
-    
-    # REQUISITO: Grupo exclusivo de Mão de Obra sem termos técnicos de impostos
+    # Listagem nominal de Mão de Obra
     pdf.set_font("Helvetica", "B", 11)
     pdf.cell(0, 8, "SERVIÇOS DE MÃO DE OBRA CONTRATADOS:", ln=True)
     pdf.set_font("Helvetica", "", 11)
     
-    tem_servico_normal = any([not s["Bônus"] for s in st.session_state.servicos_orcamento])
-    if tem_servico_normal:
-        for serv in st.session_state.servicos_orcamento:
-            if not serv["Bônus"]:
-                valor_serv_com_imposto = serv["Total"] * fator_proporcional
-                pdf.cell(0, 8, f"-> Mao de Obra para: {serv['Descrição']} | Qtd: {serv['Quantidade']} | Investimento: R$ {valor_serv_com_imposto:.2f}", ln=True)
+    fator_proporcional = custo_final_servicos_com_imposto / custo_total_servicos_normais if custo_total_servicos_normais > 0 else 1.0
+    for serv in st.session_state.servicos_orcamento:
+        if not serv["Bônus"]:
+            valor_serv_com_imposto = serv["Total"] * fator_proporcional
+            pdf.cell(0, 8, f"-> Mao de Obra para: {serv['Descrição']} | Qtd: {serv['Quantidade']} | Investimento: R$ {valor_serv_com_imposto:.2f}", ln=True)
     
     pdf.ln(4)
-    # REQUISITO: Grupo exclusivo separado para Bônus
-    pdf.set_font("Helvetica", "B", 11)
-    pdf.cell(0, 8, "ATIVIDADES ADICIONAIS CONCEDIDAS COMO BÔNUS (CORTESIA):", ln=True)
-    pdf.set_font("Helvetica", "", 11)
-    
-    if valor_total_deducao_bonus > 0:
-        for serv in st.session_state.servicos_orcamento:
-            if serv["Bônus"]:
-                pdf.cell(0, 8, f"-> Bonus para: {serv['Descrição']} | Qtd: {serv['Quantidade']} | Valor Original: R$ {serv['Total']:.2f} -> DEDUZIDO DO INVESTIMENTO TOTAL", ln=True)
-# ==============================================================================
-# BLOCO 10: CONDIÇÕES DE PAGAMENTO, TEXTOS COMPLEMENTARES E EMISSÃO DO PDF
-# ==============================================================================
-    pdf.ln(4)
+    # Listagem nominal de Materiais
     pdf.set_font("Helvetica", "B", 11)
     pdf.cell(0, 8, "MATERIAIS E INSUMOS COMPLEMENTARES:", ln=True)
     pdf.set_font("Helvetica", "", 11)
     for mat in st.session_state.materiais_orcamento:
         pdf.cell(0, 8, f"-> Fornecimento de Material: {mat['Material']} | Qtd: {mat['Qtd']} UN | Preco Unitario: R$ {mat['Preço']:.2f} | Total: R$ {mat['Total']:.2f}", ln=True)
-
-    pdf.ln(6)
+    
+    pdf.ln(8)
+    
+    # REQUISITO: Discriminação obrigatória do valor da Mão de Obra, Bônus, Material, Desconto e Valor Total
     pdf.set_font("Helvetica", "B", 12)
-    pdf.cell(0, 10, f"VALOR TOTAL DO INVESTIMENTO LÍQUIDO FENIX: R$ {preco_final_cheio:.2f}", ln=True)
+    pdf.cell(0, 10, "COMPOSIÇÃO FINANCEIRA DO PROJETO", ln=True)
+    pdf.set_font("Helvetica", "", 11)
+    pdf.cell(0, 8, f"Mao de Obra: R$ {custo_final_servicos_com_imposto:.2f}", ln=True)
+    pdf.cell(0, 8, f"Bonus: R$ {valor_total_bonus_exibicao:.2f}", ln=True)
+    pdf.cell(0, 8, f"Material: R$ {custo_bruto_materiais:.2f}", ln=True)
+    pdf.cell(0, 8, f"Desconto: R$ {valor_total_bonus_exibicao + desconto_v_manual:.2f}", ln=True)
+    pdf.cell(0, 8, f"Valor Total: R$ {preco_final_cheio:.2f}", ln=True)
+# ==============================================================================
+# BLOCO 10: ALTERAÇÃO DE RÓTULO COMERCIAL E INJEÇÃO DE CONDIÇÕES DE PAGAMENTO
+# ==============================================================================
+    pdf.ln(4)
+    # REQUISITO: Rótulo "VALOR TOTAL DO INVESTIMENTO LÍQUIDO FENIX:" alterado para "valor total do investimento"
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 10, f"valor total do investimento: R$ {preco_final_cheio:.2f}", ln=True)
     pdf.ln(10)
 
     pdf.cell(0, 10, "CONDIÇÕES DE PAGAMENTO", ln=True)
@@ -445,7 +448,7 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
         if dados_atuais:
             st.markdown("#### 📋 Registros Armazenados")
             for i, reg in enumerate(dados_atuais):
-                col_reg, col_btn = st.columns([5, 1])
+                col_reg, col_btn = st.columns([4, 1])
                 col_reg.write(f"🔹 **{reg[campos_lista[0]]}** - { {k:v for k,v in reg.items() if k != campos_lista[0]} }")
                 if col_btn.button("🗑️ Excluir", key=f"del_{s_key}_{i}"):
                     df_filtrado_exclusao = pd.DataFrame(dados_atuais).drop(i).reset_index(drop=True)
