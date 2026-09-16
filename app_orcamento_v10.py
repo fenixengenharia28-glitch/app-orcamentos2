@@ -1,5 +1,5 @@
 # ==============================================================================
-# BLOCO 1: IMPORTAÇÕES, CONFIGURAÇÃO DA PÁGINA, CONEXÃO GITHUB E MOTOR DO PDF
+# BLOCO 1: IMPORTAÇÕES, TRATAMENTO DE CONEXÃO E MOTOR DO PDF
 # ==============================================================================
 import streamlit as st
 import pandas as pd
@@ -48,11 +48,12 @@ class PDFOrcamento(FPDF):
         self.cell(0, 10, f"Página {self.page_no()}/{{nb}}", align="C", ln=True)
         self.cell(0, 5, "Gerado por Fênix Empreendimento - Contato: (31) 99539-2027", align="C")
 
-# ─── CONECTIVIDADE DO BANCO DE DADOS GITHUB ───
+# ─── CONECTIVIDADE BLINDADA DO BANCO DE DADOS GITHUB ───
 def salvar_no_github(nome_arquivo_csv, df_novo):
     try:
-        token = st.secrets["GITHUB_TOKEN"]
-        repo = st.secrets["GITHUB_REPO"]
+        # Remove espaços em branco por segurança se o usuário digitou errado nos Secrets
+        token = st.secrets["GITHUB_TOKEN"].strip()
+        repo = st.secrets["GITHUB_REPO"].strip()
     except Exception:
         df_novo.to_csv(nome_arquivo_csv, index=False, encoding="utf-8")
         return False
@@ -61,25 +62,34 @@ def salvar_no_github(nome_arquivo_csv, df_novo):
     headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
     
     sha = None
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        sha = response.json().get("sha")
-        conteudo_antigo_b64 = response.json().get("content")
-        conteudo_antigo = base64.b64decode(conteudo_antigo_b64).decode("utf-8")
-        from io import StringIO
-        df_antigo = pd.read_csv(StringIO(conteudo_antigo))
-        df_final = pd.concat([df_antigo, df_novo]).drop_duplicates().reset_index(drop=True)
-    else:
-        df_final = df_novo
+    try:
+        # Adicionado timeout e tratamento de exceção para evitar travar a tela em falhas de DNS
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            sha = response.json().get("sha")
+            conteudo_antigo_b64 = response.json().get("content")
+            conteudo_antigo = base64.b64decode(conteudo_antigo_b64).decode("utf-8")
+            from io import StringIO
+            df_antigo = pd.read_csv(StringIO(conteudo_antigo))
+            df_final = pd.concat([df_antigo, df_novo]).drop_duplicates().reset_index(drop=True)
+        else:
+            df_final = df_novo
 
-    csv_conteudo = df_final.to_csv(index=False, encoding="utf-8")
-    conteudo_b64 = base64.b64encode(csv_conteudo.encode("utf-8")).decode("utf-8")
-    
-    dados_commit = {"message": f"Atualizando base de dados: {nome_arquivo_csv}", "content": conteudo_b64}
-    if sha: dados_commit["sha"] = sha
-    requests.put(url, headers=headers, json=dados_commit)
-    df_final.to_csv(nome_arquivo_csv, index=False, encoding="utf-8")
-    return True
+        csv_conteudo = df_final.to_csv(index=False, encoding="utf-8")
+        conteudo_b64 = base64.b64encode(csv_conteudo.encode("utf-8")).decode("utf-8")
+        
+        dados_commit = {"message": f"Atualizando base de dados: {nome_arquivo_csv}", "content": conteudo_b64}
+        if sha: dados_commit["sha"] = sha
+        
+        requests.put(url, headers=headers, json=dados_commit, timeout=10)
+        df_final.to_csv(nome_arquivo_csv, index=False, encoding="utf-8")
+        return True
+        
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        # Fallback de segurança: Se a internet cair, salva em arquivo local e avisa o usuário sem dar erro de tela cheia
+        df_novo.to_csv(nome_arquivo_csv, index=False, encoding="utf-8")
+        st.warning("⚠️ Dados salvos temporariamente local devido a uma oscilação na rede, mas a conexão síncrona com o GitHub falhou. Verifique os dados em 'Segredos'.")
+        return False
 
 def carregar_dados(nome_arquivo_csv):
     if os.path.exists(nome_arquivo_csv):
@@ -92,7 +102,6 @@ if 'materiais' not in st.session_state: st.session_state.materiais = carregar_da
 if 'servicos' not in st.session_state: st.session_state.servicos = carregar_dados("servicos.csv")
 if 'materiais_orcamento' not in st.session_state: st.session_state.materiais_orcamento = []
 
-# CORREÇÃO DA LINHA 97: Definido o número 2 explicitamente dentro de st.columns
 col_topo1, col_topo2 = st.columns(2)
 with col_topo1:
     st.title("⚡ Painel de Gestão e Orçamentos Elétricos")
@@ -146,7 +155,7 @@ with aba_veiculos:
                 novo_df = pd.DataFrame([{"Modelo": v_modelo, "Placa": v_placa, "Custo/Km": v_km}])
                 salvar_no_github("veiculos.csv", novo_df)
                 st.session_state.veiculos = carregar_dados("veiculos.csv")
-                st.success(f"Veículo '{v_modelo}' cadastrado e atualizado na nuvem!")
+                st.success(f"Veículo '{v_modelo}' cadastrado e updated na nuvem!")
 
     if st.session_state.veiculos:
         st.dataframe(pd.DataFrame(st.session_state.veiculos), use_container_width=True)
@@ -241,7 +250,7 @@ with aba_orcamento:
         st.markdown("### 2. Adicionar Materiais Específicos")
         if st.session_state.materiais:
             lista_m = [m["Item"] for m in st.session_state.materiais]
-            m_sel = m_sel = st.selectbox("Buscar material do Catálogo:", lista_m)
+            m_sel = st.selectbox("Buscar material do Catálogo:", lista_m)
             dados_m = next(item for item in st.session_state.materiais if item["Item"] == m_sel)
             p_sugerido = dados_m["Preço Unitário"]
         else:
