@@ -9,14 +9,12 @@ import os
 from fpdf import FPDF
 from io import BytesIO
 
-# Configuração da interface do Streamlit
 st.set_page_config(
     page_title="Gestão de Orçamentos Elétricos Integrada", 
     page_icon="⚡", 
     layout="wide"
 )
 
-# Links e endpoints de comunicação
 WHATSAPP_NUMERO = "5531995392027"
 LINK_WHATSAPP = f"https://wa.me{WHATSAPP_NUMERO}"
 URL_QRCODE = f"https://googleapis.com{LINK_WHATSAPP}&choe=UTF-8"
@@ -29,7 +27,6 @@ class PDFOrcamento(FPDF):
         self.logo_bytes = logo_bytes
 
     def header(self):
-        # 1. LOGO ALINHADA À ESQUERDA
         if self.logo_bytes:
             with open("temp_logo.png", "wb") as f:
                 f.write(self.logo_bytes)
@@ -38,8 +35,6 @@ class PDFOrcamento(FPDF):
                 os.remove("temp_logo.png")
         
         self.set_y(8)
-        
-        # 2. DADOS CENTRALIZADOS COM INCLUSÃO DO E-MAIL REQUERIDO
         self.set_font("Helvetica", "B", 12)  
         self.cell(0, 5, "FENIX ENGENHARIA E COMERCIO LTDA", ln=True, align="C")
         
@@ -54,7 +49,6 @@ class PDFOrcamento(FPDF):
         self.set_font("Helvetica", "B", 10)
         self.cell(0, 5, "PRESTAÇÃO DE SERVIÇOS ELÉTRICOS E ENGENHARIA", ln=True, align="C")
         
-        # 3. QR CODE DO WHATSAPP FIXADO NO CANTO DIREITO DO CABEÇALHO
         try:
             qr_res = requests.get(URL_QRCODE, timeout=5)
             if qr_res.status_code == 200:
@@ -69,7 +63,6 @@ class PDFOrcamento(FPDF):
             self.set_x(155)
             self.cell(45, 5, "(31) 99539-2027", ln=True, align="R")
         
-        # Linha divisória fina cinza
         self.set_draw_color(200, 200, 200)
         self.set_line_width(0.3)
         self.line(10, 39, 200, 39)
@@ -180,7 +173,6 @@ def carregar_logo_persistida():
         with open("logo_local.png", "rb") as f: return f.read()
     return None
 
-# Inicialização dos estados da sessão Streamlit
 if 'clientes' not in st.session_state: st.session_state.clientes = carregar_dados("clientes.csv")
 if 'veiculos' not in st.session_state: st.session_state.veiculos = carregar_dados("veiculos.csv")
 if 'materiais' not in st.session_state: st.session_state.materiais = carregar_dados("materiais.csv")
@@ -206,7 +198,6 @@ with col_topo1:
 with col_topo2:
     st.image(URL_QRCODE, caption="Fale Conosco no WhatsApp")
 
-# Centralização do Orçamento Geral na primeira aba
 aba_orc_geral, aba_clientes, aba_mao_obra, aba_materiais, aba_veiculos = st.tabs([
     "📋 Orçamento Geral", "👥 Cadastro de Clientes", "🛠️ Cadastro de Serviços", "🛒 Cadastro de Materiais", "🚚 Cadastro de Veículos"
 ])
@@ -258,7 +249,7 @@ with aba_orc_geral:
                 st.session_state.servicos_orcamento = []
                 st.rerun()
 # ==============================================================================
-# BLOCO 7: CENTRAL DO ORÇAMENTO - MATERIAIS, FRETE E FECHAMENTO CORRIGIDO
+# BLOCO 7: CENTRAL DO ORÇAMENTO - MATERIAIS, FRETE E PARÂMETROS COMERCIAIS
 # ==============================================================================
     with col_o2:
         st.markdown("#### 🛒 Inserir Materiais Necessários")
@@ -302,13 +293,15 @@ with aba_orc_geral:
             custo_transporte = (km_r / cons_carro) * preco_combustivel
         else:
             custo_transporte = st.number_input("Custo de Logística Manual (R$):", min_value=0.0, value=0.0)
-
+# ==============================================================================
+# BLOCO 8: ENGENHARIA FINANCEIRA E CORREÇÃO DEFINITIVA DA LINHA 309
+# ==============================================================================
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
-        # CORREÇÃO DA LINHA 308: Variável malformada removida por completo
-        desconto_ सविता_pc = desconto_avista_pc = st.number_input("Desconto para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
+        # CORREÇÃO INTEGRAL DA LINHA 309: Variável limpa e livre de bugs sintáticos
+        desconto_avista_pc = st.number_input("Desconto para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
 
-    # Processamento de cálculos e diluição tributária
+    # Processamento analítico dos somatórios
     custo_bruto_materiais = sum([item["Total"] for item in st.session_state.materiais_orcamento])
     custo_bruto_servicos = sum([item["Total"] for item in st.session_state.servicos_orcamento])
     
@@ -329,13 +322,13 @@ with aba_orc_geral:
     
     st.info(f"💵 À VISTA COM DESCONTO: R$ {preco_final_avista:.2f} ({int(desconto_avista_pc)}% Off) | 💳 PARCELADO (Até 10x de R$ {valor_parcela_10x:.2f})")
 # ==============================================================================
-# BLOCO 8: CONVERSOR E EXPORTADOR DO PROJETO EM ARQUIVO PDF COMPLETO A4
+# BLOCO 9: CONVERSOR E EXPORTADOR DO PROJETO EM ARQUIVO PDF COMPLETO A4
 # ==============================================================================
     pdf = PDFOrcamento(logo_bytes=st.session_state.logo_bytes)
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     
-    # Dados do Cliente
+    # Seção Cliente
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "DADOS DO CLIENTE E LOCALIDADE", ln=True)
     pdf.set_font("Helvetica", "", 11)
@@ -351,7 +344,7 @@ with aba_orc_geral:
     pdf.multi_cell(0, 9, f"{orc_descricao if orc_descricao else 'Execucao conforme escopo acordado.'}")
     pdf.ln(10)
 
-    # Detalhamento Analítico Separado
+    # Tabela Analítica de Custos Separados
     pdf.set_font("Helvetica", "B", 11)
     pdf.cell(0, 10, "DETALHAMENTO ANALÍTICO DE INVESTIMENTO", ln=True)
     
@@ -371,9 +364,8 @@ with aba_orc_geral:
     pdf.cell(60, 9.5, f" R$ {preco_final_cheio:.2f}", border=1, fill=True, ln=True)
     pdf.ln(14)
 # ==============================================================================
-# BLOCO 9: CONDICIONAIS DE BÔNUS, PARCELAMENTOS E GERAÇÃO FINAL DO PDF
+# BLOCO 10: RENDERIZAÇÃO DAS DIRETRIZES DE PAGAMENTO, BÔNUS E QR CODE
 # ==============================================================================
-    # Leitura limpa antecipada para evitar NameError de escopo
     def ler_arquivo_txt(n, d): return open(n, "r", encoding="utf-8").read() if os.path.exists(n) else d
     t_pag = ler_arquivo_txt("pagamento.txt", "A combinar.")
     t_gar = ler_arquivo_txt("garantia.txt", "90 dias.")
@@ -440,7 +432,7 @@ with aba_orc_geral:
     with col_d2:
         st.link_button("💬 Enviar via WhatsApp", LINK_WHATSAPP)
 # ==============================================================================
-# BLOCO 10: FORMULÁRIOS DE CADASTROS DE RETAGUARDA (CLIENTES, SERVIÇOS, MATERIAIS E VEÍCULOS)
+# BLOCO 11: FORMULÁRIOS DE CADASTROS DE RETAGUARDA DE SEGUNDO PLANO
 # ==============================================================================
 
 # ABA - CADASTRO DE CLIENTES
