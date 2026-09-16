@@ -20,13 +20,14 @@ WHATSAPP_NUMERO = "5531995392027"
 LINK_WHATSAPP = f"https://wa.me{WHATSAPP_NUMERO}"
 URL_QRCODE = f"https://googleapis.com{LINK_WHATSAPP}&choe=UTF-8"
 
-# ─── CLASSE DO PDF COM DESIGN DE CABEÇALHO EM TRÊS SEÇÕES DADOS COMPLETOS FENIX ───
+# ─── CLASSE DO PDF COM DESIGN DE CABEÇALHO EM TRÊS SEÇÕES EM DESTAQUE ───
 class PDFOrcamento(FPDF):
     def __init__(self, logo_bytes=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.logo_bytes = logo_bytes
 
     def header(self):
+        # 1. LOGO NO CANTO ESQUERDO
         if self.logo_bytes:
             with open("temp_logo.png", "wb") as f:
                 f.write(self.logo_bytes)
@@ -36,13 +37,22 @@ class PDFOrcamento(FPDF):
         
         self.set_y(10)
         
-        # AJUSTE 1: Título técnico exigido fixado em caixa alta no centro do PDF
-        self.set_font("Helvetica", "B", 11)
-        self.cell(0, 5, "PRESTAÇÃO DE SERVIÇOS ELÉTRICOS E ENGENHARIA", ln=True, align="C")
-        self.set_font("Helvetica", "", 8)
-        self.cell(0, 4, "Fenix Engenharia e Comercio LTDA / CNPJ: 52.769.953/0001-12", ln=True, align="C")
-        self.cell(0, 4, "Avenida Getulio Vargas, nº 671, 9º Andar, Sala 1051, Bairro Savassi, Belo Horizonte - MG", ln=True, align="C")
+        # 2. DADOS DA EMPRESA CENTRALIZADOS COM NOME EM DESTAQUE E SALTO DE LINHAS
+        self.set_font("Helvetica", "B", 12)  # Nome da Empresa em Destaque (Maior e Negrito)
+        self.cell(0, 5, "Fenix Engenharia e Comercio LTDA", ln=True, align="C")
         
+        self.set_font("Helvetica", "", 8.5)
+        self.cell(0, 4.5, "CNPJ: 52.769.953/0001-12", ln=True, align="C")
+        self.cell(0, 4.5, "Avenida Getulio Vargas, nº 671, 9º Andar, Sala 1051, Bairro Savassi, Belo Horizonte - MG, Cep: 30112-021", ln=True, align="C")
+        
+        # Salto de duas linhas (gap estrutural de aproximadamente 8mm)
+        self.ln(8)
+        
+        # Informação técnica posicionada abaixo do endereço com o espaçamento solicitado
+        self.set_font("Helvetica", "B", 10.5)
+        self.cell(0, 5, "PRESTAÇÃO DE SERVIÇOS ELÉTRICOS E ENGENHARIA", ln=True, align="C")
+        
+        # 3. WHATSAPP NO CANTO DIREITO 
         self.set_y(10)
         self.set_font("Helvetica", "B", 10)
         self.set_x(155)
@@ -51,10 +61,11 @@ class PDFOrcamento(FPDF):
         self.set_font("Helvetica", "", 10)
         self.cell(45, 4, "(31) 99539-2027", ln=True, align="R")
         
+        # Linha divisória cinza reposicionada de acordo com o novo tamanho do cabeçalho
         self.set_draw_color(200, 200, 200)
         self.set_line_width(0.3)
-        self.line(10, 32, 200, 32)
-        self.set_y(40)
+        self.line(10, 42, 200, 42)
+        self.set_y(50)
 
     def footer(self):
         self.set_y(-25)
@@ -159,7 +170,7 @@ if 'logo_bytes' not in st.session_state: st.session_state.logo_bytes = carregar_
 
 col_topo1, col_topo2 = st.columns(2)
 with col_topo1:
-    st.markdown("### PRESTAÇÃO DE SERVIÇOS ELÉTRICOS E ENGENHARIA")
+    st.markdown("### Fenix Engenharia e Comercio LTDA")
     logo_upload = st.file_uploader("Upload da Logo (PNG/JPG):", type=["png", "jpg", "jpeg"])
     if logo_upload:
         bytes_da_logo = logo_upload.getvalue()
@@ -203,10 +214,9 @@ with aba_clientes:
         df_cli = pd.DataFrame(st.session_state.clientes)
         st.dataframe(df_cli, use_container_width=True)
 
-# AJUSTE 2 E 3: ABA - GESTÃO DE VEÍCULOS SIMPLIFICADA (SEM VALOR RESIDUAL E SEM KM POR ANO)
+# ABA - GESTÃO DE VEÍCULOS SIMPLIFICADA
 with aba_veiculos:
     st.subheader("🚚 Cadastro de Veículos e Calculadora de Combustível")
-    
     col_v_esq, col_v_dir = st.columns(2)
     
     with col_v_esq:
@@ -220,40 +230,29 @@ with aba_veiculos:
             
             if st.form_submit_button("💾 Salvar Veículo no GitHub"):
                 if v_modelo and v_placa:
-                    # Depreciação simplificada por ano baseada no tempo de uso digitado
                     depreciacao_anual_simples = v_compra / v_tempo_uso
-                    
                     novo_veic_df = pd.DataFrame([{
-                        "Modelo": v_modelo,
-                        "Placa": v_placa,
-                        "Valor Compra": v_compra,
-                        "Tempo de Uso (Anos)": v_tempo_uso,
-                        "Consumo (Km/L)": v_consumo,
-                        "Depreciação Anual Est.": round(depreciacao_anual_simples, 2)
+                        "Modelo": v_modelo, "Placa": v_placa, "Valor Compra": v_compra, "Tempo de Uso (Anos)": v_tempo_uso, "Consumo (Km/L)": v_consumo, "Depreciação Anual Est.": round(depreciacao_anual_simples, 2)
                     }])
                     salvar_no_github("veiculos.csv", novo_veic_df)
                     st.session_state.veiculos = carregar_dados("veiculos.csv")
                     st.success(f"Veículo '{v_modelo}' arquivado!")
                     st.rerun()
 
-    # AJUSTE 5: CÁLCULO DE COMBUSTÍVEL LOCALIZADO NA MESMA ABA DO CADASTRO
     with col_v_dir:
-        st.markdown("#### 🧮 Calculadora Rápida de Combustível para o Serviço")
+        st.markdown("#### 🧮 Calculadora Rápida de Combustível")
         if st.session_state.veiculos:
             df_veic_calc = pd.DataFrame(st.session_state.veiculos)
             lista_placas = df_veic_calc["Placa"].tolist()
             veic_sel_calc = st.selectbox("Selecione o veículo da frota:", lista_placas)
+            km_servico = st.number_input("Quilômetros totais estimados (Ida + Volta):", min_value=0.0, value=50.0)
+            preco_litro = st.number_input("Preço atual do litro (R$):", min_value=0.0, value=5.90, step=0.10)
             
-            km_servico = st.number_input("Quilômetros totais estimados para o serviço (Ida + Volta):", min_value=0.0, value=50.0)
-            preco_litro = st.number_input("Preço atual do litro do Combustível (R$):", min_value=0.0, value=5.90, step=0.10)
-            
-            # Puxa o consumo do veículo selecionado na tabela
-            consumo_carro = float(df_veic_calc[df_veic_calc["Placa"] == veic_sel_calc]["Consumo (Km/L)"].values[0])
+            consumo_carro = float(df_veic_calc[df_veic_calc["Placa"] == veic_sel_calc]["Consumo (Km/L)"].values)
             custo_combustivel_calculado = (km_servico / consumo_carro) * preco_litro
-            
             st.metric("Custo Estimado de Combustível", f"R$ {custo_combustivel_calculado:.2f}")
         else:
-            st.info("Cadastre um veículo primeiro para liberar a calculadora de combustível.")
+            st.info("Cadastre um veículo primeiro para liberar a calculadora.")
 
     if st.session_state.veiculos:
         st.markdown("### Frota Ativa")
@@ -371,13 +370,11 @@ with aba_orc_ponto:
             df_v_orc = pd.DataFrame(st.session_state.veiculos)
             lista_v = [f"{v['Modelo']} ({v['Placa']})" for v in st.session_state.veiculos]
             v_sel = st.selectbox("Veículo de Atendimento:", lista_v, key="orc_p_veic")
-            
             km_r = st.number_input("KM Estimado (Ida + Volta):", min_value=0.0, value=20.0, key="km_p")
             preco_combustivel = st.number_input("Preço do Combustível (R$/L):", min_value=0.0, value=5.90, key="prc_comb_p")
             
             idx = lista_v.index(v_sel)
             cons_carro = float(df_v_orc.iloc[idx]["Consumo (Km/L)"])
-            # Cálculo de combustível síncrono para anexar ao fechamento do orçamento
             custo_transporte = (km_r / cons_carro) * preco_combustivel
             st.caption(f"Custo de Combustível Calculado: R$ {custo_transporte:.2f}")
         else:
@@ -440,6 +437,7 @@ with aba_orc_ponto:
     pdf.add_page()
     pdf.set_font("Helvetica", "", 11)
     
+    # Seção Cliente
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 8, "DADOS DO CLIENTE", ln=True)
     pdf.set_font("Helvetica", "", 10)
@@ -448,12 +446,14 @@ with aba_orc_ponto:
     pdf.cell(0, 6, f"Endereco da Obra: {endereco_disp}", ln=True)
     pdf.ln(5)
 
+    # Seção Escopo
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 8, f"SERVICO: Orcamento por Ponto Elétrico ({int(op_qtd_pontos)} pontos)", ln=True)
     pdf.set_font("Helvetica", "", 10)
     pdf.multi_cell(0, 6, f"Escopo Técnico:\n{orc_descricao if orc_descricao else 'Execucao conforme levantamento de pontos.'}")
     pdf.ln(5)
 
+    # Valores
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 8, "RESUMO FINANCEIRO", ln=True)
     pdf.set_font("Helvetica", "", 10)
@@ -466,6 +466,7 @@ with aba_orc_ponto:
     pdf.cell(0, 8, f"VALOR TOTAL DO INVESTIMENTO: R$ {preco_final:.2f}", ln=True)
     pdf.ln(5)
 
+    # Termos Comerciais e QR CODE INJETADO LADO A LADO
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 8, "CONDIÇÕES COMERCIAIS", ln=True)
     
