@@ -1,5 +1,5 @@
 # ==============================================================================
-# BLOCO 1: IMPORTAÇÕES, ENGINE DO GITHUB, MOTOR PDF E SALVAMENTO DE LOGO
+# BLOCO 1: IMPORTAÇÕES, ENGINE DO GITHUB, SALVAMENTO DE LOGO E NOVO CABEÇALHO PDF
 # ==============================================================================
 import streamlit as st
 import pandas as pd
@@ -20,26 +20,50 @@ WHATSAPP_NUMERO = "5531995392027"
 LINK_WHATSAPP = f"https://wa.me{WHATSAPP_NUMERO}"
 URL_QRCODE = f"https://googleapis.com{LINK_WHATSAPP}&choe=UTF-8"
 
-# ─── CLASSE DO PDF PERSONALIZADO COM SUPORTE A LOGO ───
+# ─── CLASSE DO PDF COM DESIGN DE CABEÇALHO EM TRÊS SEÇÕES (LOGO - DADOS - WHATSAPP) ───
 class PDFOrcamento(FPDF):
     def __init__(self, logo_bytes=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.logo_bytes = logo_bytes
 
     def header(self):
+        # 1. LOGO NO CANTO ESQUERDO
         if self.logo_bytes:
             with open("temp_logo.png", "wb") as f:
                 f.write(self.logo_bytes)
-            self.image("temp_logo.png", 10, 8, 33)
+            # Renderiza a logo na posição X=10, Y=10 com 32mm de largura
+            self.image("temp_logo.png", 10, 10, 32)
             if os.path.exists("temp_logo.png"):
                 os.remove("temp_logo.png")
         
-        self.set_font("Helvetica", "B", 14)
-        self.cell(40) 
-        self.cell(0, 10, "ORÇAMENTO DE SERVIÇOS ELÉTRICOS", ln=True, align="R")
-        self.set_draw_color(220, 220, 220)
-        self.line(10, 45, 200, 45)
-        self.ln(20)
+        # Guardar posição Y para alinhar os textos horizontalmente com a logo
+        self.set_y(15)
+        
+        # 2. DADOS DA EMPRESA CENTRALIZADOS
+        self.set_font("Helvetica", "B", 12)
+        # Largura total útil da página é 190mm (210mm - 20mm de margens)
+        # Imprime o texto centralizado na folha
+        self.cell(0, 6, "Fenix Engenharia e Comercio LTDA", ln=True, align="C")
+        self.set_font("Helvetica", "", 9)
+        self.cell(0, 5, "PRESTAÇÃO DE SERVIÇOS ELÉTRICOS E ENGENHARIA", ln=True, align="C")
+        
+        # 3. WHATSAPP NO CANTO DIREITO (Injetado via posicionamento absoluto na mesma linha)
+        self.set_y(15)
+        self.set_font("Helvetica", "B", 11)
+        # Posiciona a escrita encostada na margem direita (X=160)
+        self.set_x(155)
+        self.cell(45, 6, "WhatsApp:", ln=True, align="R")
+        self.set_x(155)
+        self.set_font("Helvetica", "", 11)
+        self.cell(45, 5, "(31) 99539-2027", ln=True, align="R")
+        
+        # Linha divisória cinza elegante abaixo do cabeçalho triplo
+        self.set_draw_color(200, 200, 200)
+        self.set_line_width(0.3)
+        self.line(10, 36, 200, 36)
+        
+        # Espaçamento para o início do corpo do documento
+        self.set_y(45)
 
     def footer(self):
         self.set_y(-25)
@@ -47,7 +71,7 @@ class PDFOrcamento(FPDF):
         self.line(10, 270, 200, 270)
         self.set_font("Helvetica", "I", 8)
         self.cell(0, 10, f"Página {self.page_no()}/{{nb}}", align="C", ln=True)
-        self.cell(0, 5, "Gerado por Fênix Empreendimento - Contato: (31) 99539-2027", align="C")
+        self.cell(0, 5, "Fenix Engenharia e Comercio LTDA - Contato: (31) 99539-2027", align="C")
 
 # ─── CONECTIVIDADE E ATUALIZAÇÃO COMPLETA NO GITHUB ───
 def salvar_no_github(nome_arquivo_csv, df_novo, sobrescrever=False):
@@ -82,7 +106,7 @@ def salvar_no_github(nome_arquivo_csv, df_novo, sobrescrever=False):
             conteudo_final = df_final.to_csv(index=False, encoding="utf-8")
             conteudo_b64 = base64.b64encode(conteudo_final.encode("utf-8")).decode("utf-8")
         else:
-            conteudo_b64 = df_final # Caso já receba a string em base64 da logo
+            conteudo_b64 = df_final
 
         dados_commit = {"message": f"Atualizando arquivo: {nome_arquivo_csv}", "content": conteudo_b64}
         if sha: dados_commit["sha"] = sha
@@ -463,7 +487,7 @@ with aba_orc_ponto:
     rm4.metric("Impostos", f"R$ {impostos_finais:.2f}")
     rm5.metric("PREÇO FINAL", f"R$ {preco_final:.2f}", delta=f"- R$ {desc_v:.2f}" if desc_v > 0 else None)
 
-    # Conversor FPDF aplicando os bytes guardados na sessão
+    # Conversor FPDF aplicando o cabeçalho triplo ajustado
     pdf = PDFOrcamento(logo_bytes=st.session_state.logo_bytes)
     pdf.add_page()
     pdf.set_font("Helvetica", "", 11)
