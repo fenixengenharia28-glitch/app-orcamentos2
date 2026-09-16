@@ -1,5 +1,5 @@
 # ==============================================================================
-# BLOCO 1: IMPORTAÇÕES, ENGINE DO GITHUB, SALVAMENTO DE LOGO E NOVO CABEÇALHO PDF
+# BLOCO 1: IMPORTAÇÕES, ENGINE DO GITHUB BLINDADA E MOTOR DO PDF
 # ==============================================================================
 import streamlit as st
 import pandas as pd
@@ -20,14 +20,13 @@ WHATSAPP_NUMERO = "5531995392027"
 LINK_WHATSAPP = f"https://wa.me{WHATSAPP_NUMERO}"
 URL_QRCODE = f"https://googleapis.com{LINK_WHATSAPP}&choe=UTF-8"
 
-# ─── CLASSE DO PDF COM DESIGN DE CABEÇALHO EM TRÊS SEÇÕES (LOGO - DADOS - WHATSAPP) ───
+# ─── CLASSE DO PDF COM DESIGN DE CABEÇALHO EM TRÊS SEÇÕES ───
 class PDFOrcamento(FPDF):
     def __init__(self, logo_bytes=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.logo_bytes = logo_bytes
 
     def header(self):
-        # 1. LOGO NO CANTO ESQUERDO
         if self.logo_bytes:
             with open("temp_logo.png", "wb") as f:
                 f.write(self.logo_bytes)
@@ -36,14 +35,11 @@ class PDFOrcamento(FPDF):
                 os.remove("temp_logo.png")
         
         self.set_y(15)
-        
-        # 2. DADOS DA EMPRESA CENTRALIZADOS
         self.set_font("Helvetica", "B", 12)
         self.cell(0, 6, "Fenix Engenharia e Comercio LTDA", ln=True, align="C")
         self.set_font("Helvetica", "", 9)
         self.cell(0, 5, "PRESTAÇÃO DE SERVIÇOS ELÉTRICOS E ENGENHARIA", ln=True, align="C")
         
-        # 3. WHATSAPP NO CANTO DIREITO 
         self.set_y(15)
         self.set_font("Helvetica", "B", 11)
         self.set_x(155)
@@ -88,6 +84,19 @@ def salvar_no_github(nome_arquivo_csv, df_novo, sobrescrever=False):
                 conteudo_antigo = base64.b64decode(conteudo_antigo_b64).decode("utf-8")
                 from io import StringIO
                 df_antigo = pd.read_csv(StringIO(conteudo_antigo))
+                
+                # CORREÇÃO PARA PLANILHAS ANTIGAS: Adapta colunas se houver divergência estrutural
+                if nome_arquivo_csv == "servicos.csv" and "Serviço" in df_antigo.columns:
+                    df_antigo = df_antigo.rename(columns={"Serviço": "Descrição"})
+                    if "Preço Base" in df_antigo.columns:
+                        df_antigo = df_antigo.rename(columns={"Preço Base": "Valor Compra Un. (R$)"})
+                
+                # Garante o alinhamento das colunas antes de juntar
+                for col in df_novo.columns:
+                    if col not in df_antigo.columns: df_antigo[col] = None
+                for col in df_antigo.columns:
+                    if col not in df_novo.columns: df_novo[col] = None
+                    
                 df_final = pd.concat([df_antigo, df_novo]).drop_duplicates().reset_index(drop=True)
             else:
                 df_final = df_novo
@@ -115,7 +124,11 @@ def salvar_no_github(nome_arquivo_csv, df_novo, sobrescrever=False):
 def carregar_dados(nome_arquivo_csv):
     if os.path.exists(nome_arquivo_csv):
         try:
-            return pd.read_csv(nome_arquivo_csv).to_dict(orient="records")
+            df = pd.read_csv(nome_arquivo_csv)
+            # Normalização síncrona pós-leitura local
+            if nome_arquivo_csv == "servicos.csv" and "Serviço" in df.columns:
+                df = df.rename(columns={"Serviço": "Descrição", "Preço Base": "Valor Compra Un. (R$)"})
+            return df.to_dict(orient="records")
         except Exception:
             return []
     return []
@@ -195,8 +208,8 @@ with aba_clientes:
         idx_cli = df_cli[df_cli["Nome"] == item_para_gerenciar].index
         col_ed1, col_ed2 = st.columns(2)
         with col_ed1:
-            novo_contato = st.text_input("Alterar Contato:", value=df_cli.loc[idx_cli, "Contato"].values[0])
-            novo_end = st.text_input("Alterar Endereço:", value=df_cli.loc[idx_cli, "Endereço"].values[0])
+            novo_contato = st.text_input("Alterar Contato:", value=df_cli.loc[idx_cli, "Contato"].values)
+            novo_end = st.text_input("Alterar Endereço:", value=df_cli.loc[idx_cli, "Endereço"].values)
         with col_ed2:
             st.write("")
             if st.button("📝 Confirmar Alteração de Dados", key="btn_edit_cli"):
@@ -240,7 +253,7 @@ with aba_veiculos:
         idx_veic = df_veic[df_veic["Placa"] == veic_para_gerenciar].index
         col_ev1, col_ev2 = st.columns(2)
         with col_ev1:
-            novo_custo_km = st.number_input("Alterar Custo por KM (R$):", min_value=0.0, value=float(df_veic.loc[idx_veic, "Custo/Km"].values[0]), step=0.10)
+            novo_custo_km = st.number_input("Alterar Custo por KM (R$):", min_value=0.0, value=float(df_veic.loc[idx_veic, "Custo/Km"].values), step=0.10)
         with col_ev2:
             st.write("")
             if st.button("📝 Confirmar Alteração de Valor KM", key="btn_edit_veic"):
@@ -256,7 +269,7 @@ with aba_veiculos:
                 st.error("Veículo excluído!")
                 st.rerun()
 # ==============================================================================
-# BLOCO 3: ALMOXARIFADO E PORTFÓLIO DE SERVIÇOS COM UNIDADE DE MEDIDA CUSTOMIZADA
+# BLOCO 3: ALMOXARIFADO E NOVO PORTFÓLIO DE SERVIÇOS COM CORREÇÃO DE COLUNA
 # ==============================================================================
 
 # ABA - CADASTRO DE MATERIAIS
@@ -268,7 +281,7 @@ with aba_materiais:
             mat_nome = st.text_input("Nome do Material:")
             mat_marca = st.text_input("Marca / Fabricante:")
         with col_m2:
-            mat_unidade = st.text_input("Unidade de Medida livre (Ex: UN, m, cx, barra, m²):", placeholder="UN")
+            mat_unidade = st.text_input("Unidade de Medida livre (Ex: UN, m, cx, barra):", placeholder="UN")
             mat_preco = st.number_input("Preço de Custo Padrão (R$):", min_value=0.0, value=0.0, step=5.0)
             
         if st.form_submit_button("💾 Salvar Material"):
@@ -287,8 +300,8 @@ with aba_materiais:
         idx_mat = df_mat[df_mat["Item"] == mat_para_gerenciar].index
         col_em1, col_em2 = st.columns(2)
         with col_em1:
-            novo_un_mat = st.text_input("Alterar Unidade:", value=str(df_mat.loc[idx_mat, "Unidade"].values[0]) if "Unidade" in df_mat.columns else "UN")
-            novo_preco_mat = st.number_input("Alterar Preço (R$):", min_value=0.0, value=float(df_mat.loc[idx_mat, "Preço Unitário"].values[0]))
+            novo_un_mat = st.text_input("Alterar Unidade:", value=str(df_mat.loc[idx_mat, "Unidade"].values) if "Unidade" in df_mat.columns else "UN")
+            novo_preco_mat = st.number_input("Alterar Preço (R$):", min_value=0.0, value=float(df_mat.loc[idx_mat, "Preço Unitário"].values))
         with col_em2:
             st.write("")
             if st.button("📝 Confirmar Ajustes", key="btn_edit_mat"):
@@ -303,7 +316,7 @@ with aba_materiais:
                 st.session_state.materiais = df_mat.to_dict(orient="records")
                 st.rerun()
 
-# ABA - MÃO DE OBRA E PORTFÓLIO DE SERVIÇOS
+# ABA - MÃO DE OBRA E PORTFÓLIO DE SERVIÇOS (BLINDAGEM ADICIONADA)
 with aba_mao_obra:
     st.subheader("🛠️ Portfólio Detalhado de Serviços")
     with st.form("form_novo_servico_detalhado", clear_on_submit=True):
@@ -312,7 +325,7 @@ with aba_mao_obra:
             ts_qtd = st.number_input("Quantidade:", min_value=0.0, value=1.0, step=1.0)
             ts_desc = st.text_input("Descrição do Serviço:")
         with col_s2:
-            ts_unidade = st.text_input("Unidade de Medida livre (Ex: UN, h, m, pc, kit, diária):", placeholder="UN")
+            ts_unidade = st.text_input("Unidade de Medida livre (Ex: UN, h, diária):", placeholder="UN")
             ts_compra = st.number_input("Valor de Compra (Preço Unitário R$):", min_value=0.0, value=0.0, step=50.0)
             
         if st.form_submit_button("💾 Salvar Serviço no GitHub"):
@@ -328,15 +341,27 @@ with aba_mao_obra:
 
     if st.session_state.servicos:
         df_serv = pd.DataFrame(st.session_state.servicos)
+        
+        # Garante de forma forçada que as colunas antigas sejam reajustadas na exibição para não dar KeyError
+        if "Serviço" in df_serv.columns:
+            df_serv = df_serv.rename(columns={"Serviço": "Descrição", "Preço Base": "Valor Compra Un. (R$)"})
+        if "Quantidade" not in df_serv.columns: df_serv["Quantidade"] = 1.0
+        if "Unidade" not in df_serv.columns: df_serv["Unidade"] = "UN"
+        if "Total Bruto  (R$)" not in df_serv.columns: df_serv["Total Bruto (R$)"] = df_serv["Quantidade"] * df_serv["Valor Compra Un. (R$)"]
+        
         st.dataframe(df_serv, use_container_width=True)
         st.markdown("#### ✏️ Alterar ou Excluir Serviço")
-        serv_para_gerenciar = st.selectbox("Selecione o Serviço para Modificar:", df_serv["Descrição"].tolist(), key="sel_serv")
+        
+        # Puxa a lista com segurança total
+        lista_descricoes = df_serv["Descrição"].dropna().tolist()
+        serv_para_gerenciar = st.selectbox("Selecione o Serviço para Modificar:", lista_descricoes, key="sel_serv")
         idx_serv = df_serv[df_serv["Descrição"] == serv_para_gerenciar].index
+        
         col_es1, col_es2 = st.columns(2)
         with col_es1:
-            novo_un_serv = st.text_input("Alterar Unidade do Serviço:", value=str(df_serv.loc[idx_serv, "Unidade"].values[0]))
-            novo_qtd_serv = st.number_input("Alterar Qtd:", min_value=0.0, value=float(df_serv.loc[idx_serv, "Quantidade"].values[0]))
-            novo_preco_serv = st.number_input("Alterar Valor Unitário (R$):", min_value=0.0, value=float(df_serv.loc[idx_serv, "Valor Compra Un. (R$)"].values[0]))
+            novo_un_serv = st.text_input("Alterar Unidade do Serviço:", value=str(df_serv.loc[idx_serv, "Unidade"].values[0]) if idx_serv.any() else "UN")
+            novo_qtd_serv = st.number_input("Alterar Qtd:", min_value=0.0, value=float(df_serv.loc[idx_serv, "Quantidade"].values[0]) if idx_serv.any() else 1.0)
+            novo_preco_serv = st.number_input("Alterar Valor Unitário (R$):", min_value=0.0, value=float(df_serv.loc[idx_serv, "Valor Compra Un. (R$)"].values[0]) if idx_serv.any() else 0.0)
         with col_es2:
             st.write("")
             if st.button("📝 Confirmar Mudanças", key="btn_edit_serv"):
@@ -346,11 +371,13 @@ with aba_mao_obra:
                 df_serv.loc[idx_serv, "Total Bruto (R$)"] = novo_qtd_serv * novo_preco_serv
                 salvar_no_github("servicos.csv", df_serv, sobrescrever=True)
                 st.session_state.servicos = df_serv.to_dict(orient="records")
+                st.success("Serviço atualizado!")
                 st.rerun()
             if st.button("🗑️ Excluir Serviço", key="btn_del_serv"):
                 df_serv = df_serv.drop(idx_serv)
                 salvar_no_github("servicos.csv", df_serv, sobrescrever=True)
                 st.session_state.servicos = df_serv.to_dict(orient="records")
+                st.error("Serviço removido!")
                 st.rerun()
 # ==============================================================================
 # BLOCO 4: ORÇAMENTO POR PONTO E NOVA ABA DE CÁLCULO DE PREÇO (COM PDF)
