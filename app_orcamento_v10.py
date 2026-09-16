@@ -235,9 +235,8 @@ with aba_orc_geral:
             servico_bonus = st.checkbox("Definir esta atividade como BÔNUS do orçamento (Dedução no Cálculo)")
             
             if st.button("➕ Adicionar Serviço ao Escopo"):
-                # CORREÇÃO DEFINITIVA DO TYPEERROR DA LINHA 239: Extração de valor segura usando filtro posicional .iloc[0]
                 linha_filtrada = df_serv_disp[df_serv_disp["Descrição"] == servico_escolhido]
-                preco_unitario_servico = float(linha_filtrada["Valor Compras Un. (R$)"].iloc[0])
+                preco_unitario_servico = float(linha_filtrada["Valor Compra Un. (R$)"].iloc[0])
                 preco_calculado_linha = preco_unitario_servico * qtd_servico_solicitado
                 
                 st.session_state.servicos_orcamento.append({
@@ -261,7 +260,7 @@ with aba_orc_geral:
 # BLOCO 7: CENTRAL DO ORÇAMENTO - MATERIAIS, FRETE E PARÂMETROS COMERCIAIS
 # ==============================================================================
     with col_o2:
-        st.markdown("#### 🛒 Inserir Materials Necessários")
+        st.markdown("#### 🛒 Inserir Materiais Necessários")
         if st.session_state.materiais:
             lista_m = [m["Item"] for m in st.session_state.materiais]
             m_sel = st.selectbox("Buscar material no Almoxarifado:", lista_m)
@@ -303,11 +302,12 @@ with aba_orc_geral:
         else:
             custo_transporte = st.number_input("Custo de Logística Manual (R$):", min_value=0.0, value=0.0)
 # ==============================================================================
-# BLOCO 8: ENGENHARIA FINANCEIRA - CÁLCULO E DILUIÇÃO TRIBUTÁRIA SÍNCRONA
+# BLOCO 8: ENGENHARIA FINANCEIRA - CÁLCULO E CORREÇÃO DEFINITIVA DA LINHA 310
 # ==============================================================================
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
-        desconto_ सविता_pc = desconto_avista_pc = st.number_input("Desconto para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
+        # CORREÇÃO INTEGRAL DA LINHA 310: Variável duplicada incorreta removida por completo
+        desconto_avista_pc = st.number_input("Desconto para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
 
     # Processamento analítico síncrono
     custo_bruto_materiais = sum([item["Total"] for item in st.session_state.materiais_orcamento])
@@ -334,7 +334,7 @@ with aba_orc_geral:
     rm1, rm2, rm3 = st.columns(3)
     rm1.metric("Mão de Obra Unificada", f"R$ {custo_final_servicos_com_imposto:.2f}")
     rm2.metric("Materiais Unificados", f"R$ {custo_bruto_materiais:.2f}")
-    rm3.metric("VALOR INVESTIMENTO LIQUIDO", f"R$ {preco_final_cheio:.2f}", delta=f"- R$ {valor_total_deducao_bonus:.2f}" if valor_total_deducao_bonus > 0 else None)
+    rm3.metric("VALOR INVESTIMENTO LÍQUIDO", f"R$ {preco_final_cheio:.2f}", delta=f"- R$ {valor_total_deducao_bonus:.2f}" if valor_total_deducao_bonus > 0 else None)
     
     st.info(f"💵 À VISTA COM DESCONTO: R$ {preco_final_avista:.2f} ({int(desconto_avista_pc)}% Off) | 💳 PARCELADO (Até 10x de R$ {valor_parcela_10x:.2f})")
 # ==============================================================================
