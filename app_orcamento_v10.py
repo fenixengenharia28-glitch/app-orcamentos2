@@ -228,13 +228,14 @@ with aba_orc_geral:
             lista_servicos_nomes = df_serv_disp["Descrição"].dropna().tolist()
             servico_escolhido = st.selectbox("Escolha qual tipo de serviço será prestado:", lista_servicos_nomes)
             
-            servico_bonus = st.checkbox("Definir esta atividade como BÔNUS do orçamento (Valor zerado)")
+            servico_bonus = st.checkbox("Definir esta atividade como BÔNUS do orçamento (Dedução no Cálculo)")
             
             if st.button("➕ Adicionar Serviço ao Escopo"):
                 dados_s = df_serv_disp[df_serv_disp["Descrição"] == servico_escolhido].iloc[0]
+                # ATUALIZAÇÃO REQUERIDA: Bônus entra com o seu valor real salvo na listagem para exibição
                 st.session_state.servicos_orcamento.append({
                     "Descrição": servico_escolhido,
-                    "Total": 0.0 if servico_bonus else float(dados_s["Total Bruto (R$)"]),
+                    "Total": float(dados_s["Total Bruto (R$)"]),
                     "Bônus": servico_bonus,
                     "Preço Original": float(dados_s["Total Bruto (R$)"])
                 })
@@ -294,21 +295,28 @@ with aba_orc_geral:
         else:
             custo_transporte = st.number_input("Custo de Logística Manual (R$):", min_value=0.0, value=0.0)
 # ==============================================================================
-# BLOCO 8: ENGENHARIA FINANCEIRA E CORREÇÃO DEFINITIVA DA LINHA 309
+# BLOCO 8: ENGENHARIA FINANCEIRA - CÁLCULO DE DEDUÇÃO COMPLETA DE BÔNUS
 # ==============================================================================
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
-        # CORREÇÃO INTEGRAL DA LINHA 309: Variável limpa e livre de bugs sintáticos
         desconto_avista_pc = st.number_input("Desconto para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
 
     # Processamento analítico dos somatórios
     custo_bruto_materiais = sum([item["Total"] for item in st.session_state.materiais_orcamento])
-    custo_bruto_servicos = sum([item["Total"] for item in st.session_state.servicos_orcamento])
     
-    valor_imposto_diluido = (custo_bruto_servicos + custo_bruto_materiais + custo_transporte) * (imposto_pc / 100)
-    custo_final_servicos_com_imposto = custo_bruto_servicos + valor_imposto_diluido + custo_transporte
+    # ATUALIZAÇÃO REQUERIDA: Calcula o valor total incluindo os bônus para a exibição cheia
+    custo_total_servicos_exibicao = sum([item["Total"] for item in st.session_state.servicos_orcamento])
+    # Calcula estritamente a soma das atividades marcadas como bônus para aplicar a dedução
+    valor_total_deducao_bonus = sum([item["Total"] for item in st.session_state.servicos_orcamento if item["Bônus"]])
     
-    preco_final_cheio = custo_final_servicos_com_imposto + custo_bruto_materiais
+    # Executa o cálculo tradicional de impostos e frete sobre os serviços executados
+    valor_imposto_diluido = (custo_total_servicos_exibicao + custo_bruto_materiais + custo_transporte) * (imposto_pc / 100)
+    custo_final_servicos_com_imposto = custo_total_servicos_exibicao + valor_imposto_diluido + custo_transporte
+    
+    # ATUALIZAÇÃO REQUERIDA: Preço final cheio sofre a dedução matemática exata dos bônus concedidos
+    preco_final_cheio = (custo_final_servicos_com_imposto + custo_bruto_materiais) - valor_total_deducao_bonus
+    if preco_final_cheio < 0: preco_final_cheio = 0.0
+    
     preco_final_avista = preco_final_cheio * (1 - (desconto_avista_pc / 100))
     preco_final_parcelado_com_taxa = preco_final_cheio * 1.08
     valor_parcela_10x = preco_final_parcelado_com_taxa / 10
@@ -318,7 +326,7 @@ with aba_orc_geral:
     rm1, rm2, rm3 = st.columns(3)
     rm1.metric("Mão de Obra (Com Imposto Diluído)", f"R$ {custo_final_servicos_com_imposto:.2f}")
     rm2.metric("Materiais Separados", f"R$ {custo_bruto_materiais:.2f}")
-    rm3.metric("VALOR TOTAL DO INVESTIMENTO", f"R$ {preco_final_cheio:.2f}")
+    rm3.metric("VALOR FINAL COM DEDUÇÃO DE BÔNUS", f"R$ {preco_final_cheio:.2f}", delta=f"- R$ {valor_total_deducao_bonus:.2f}" if valor_total_deducao_bonus > 0 else None)
     
     st.info(f"💵 À VISTA COM DESCONTO: R$ {preco_final_avista:.2f} ({int(desconto_avista_pc)}% Off) | 💳 PARCELADO (Até 10x de R$ {valor_parcela_10x:.2f})")
 # ==============================================================================
@@ -344,7 +352,7 @@ with aba_orc_geral:
     pdf.multi_cell(0, 9, f"{orc_descricao if orc_descricao else 'Execucao conforme escopo acordado.'}")
     pdf.ln(10)
 
-    # Tabela Analítica de Custos Separados
+    # REQUISITO: Detalhamento sem a informação escrita de tributação e encargos
     pdf.set_font("Helvetica", "B", 11)
     pdf.cell(0, 10, "DETALHAMENTO ANALÍTICO DE INVESTIMENTO", ln=True)
     
@@ -353,12 +361,17 @@ with aba_orc_geral:
     pdf.cell(60, 9.5, " Valor Comercial (R$)", border=1, fill=True, ln=True)
     
     pdf.set_font("Helvetica", "", 11)
-    pdf.cell(130, 9.5, " Mao de Obra Especializada (Tributos e Encargos Inclusos)", border=1)
+    # ATUALIZAÇÃO REQUERIDA: Removida a string "(Tributos e Encargos Inclusos)" do documento impresso
+    pdf.cell(130, 9.5, " Mao de Obra Especializada", border=1)
     pdf.cell(60, 9.5, f" R$ {custo_final_servicos_com_imposto:.2f}", border=1, ln=True)
     
     pdf.cell(130, 9.5, " Fornecimento de Materiais e Insumos Homologados", border=1)
     pdf.cell(60, 9.5, f" R$ {custo_bruto_materiais:.2f}", border=1, ln=True)
     
+    if valor_total_deducao_bonus > 0:
+        pdf.cell(130, 9.5, " Desconto por Atividades em Bonus (Deducao)", border=1)
+        pdf.cell(60, 9.5, f" - R$ {valor_total_deducao_bonus:.2f}", border=1, ln=True)
+
     pdf.set_font("Helvetica", "B", 11)
     pdf.cell(130, 9.5, " VALOR TOTAL DO INVESTIMENTO LIQUIDO", border=1, fill=True)
     pdf.cell(60, 9.5, f" R$ {preco_final_cheio:.2f}", border=1, fill=True, ln=True)
@@ -371,14 +384,14 @@ with aba_orc_geral:
     t_gar = ler_arquivo_txt("garantia.txt", "90 dias.")
     t_obs = ler_arquivo_txt("observacoes.txt", "Sem alteração estrutural.")
 
-    tem_bonus = any([item["Bônus"] for item in st.session_state.servicos_orcamento])
-    if tem_bonus:
+    # Listagem das atividades que entraram como bônus com o seu respectivo valor real
+    if valor_total_deducao_bonus > 0:
         pdf.set_font("Helvetica", "B", 11)
-        pdf.cell(0, 10, "ATIVIDADES ADICIONAIS CONCEDIDAS COMO BÔNUS (CORTESIA)", ln=True)
+        pdf.cell(0, 10, "ATIVIDADES ADICIONAIS CONCEDIDAS COMO BÔNUS (DEDUZIDAS DO TOTAL)", ln=True)
         pdf.set_font("Helvetica", "I", 10)
         for serv in st.session_state.servicos_orcamento:
             if serv["Bônus"]:
-                pdf.cell(0, 7, f" - {serv['Descrição']} (Preco Original: R$ {serv['Preço Original']:.2f}) -> INCLUSO COMO BÔNUS", ln=True)
+                pdf.cell(0, 7, f" - {serv['Descrição']} (Valor: R$ {serv['Preço Original']:.2f}) -> DESCONTADO NO CÁLCULO FINAL", ln=True)
         pdf.ln(10)
 
     pdf.set_font("Helvetica", "B", 12)
