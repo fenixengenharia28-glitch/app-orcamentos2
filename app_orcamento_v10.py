@@ -325,7 +325,7 @@ with aba_orc_geral:
     rm2.metric("Materiais Coletados", formatar_real(custo_bruto_materiais))
     rm3.metric("VALOR TOTAL FINAL COBRADO", formatar_real(preco_final_cheio), delta=f"- {formatar_real(valor_desconto_dinheiro)}" if valor_desconto_dinheiro > 0 else None)
 # ==============================================================================
-# BLOCO 9: DESIGN DO PDF A4 - CORREÇÃO CRUCIAL DA LARGURA DO MULTI_CELL (FIXED)
+# BLOCO 9: DESIGN DO PDF A4 - COMPOSIÇÃO FINANCEIRA NARRATIVA COM MULTI-CELL
 # ==============================================================================
     pdf = PDFOrcamento(logo_bytes=st.session_state.logo_bytes)
     pdf.set_auto_page_break(auto=True, margin=15)
@@ -357,8 +357,7 @@ with aba_orc_geral:
     pdf.set_font("Helvetica", "", 11)
     for serv in st.session_state.servicos_orcamento:
         if not serv["Bônus"]:
-            valor_serv_com_todos_custos = serv["Total"] * fator_proporcional
-            # CORREÇÃO CRUCIAL DA IMAGEM: Modificada a largura de 0 para 190 para evitar o erro horizontal do FPDF e corrigido o termo duplicado
+            valor_serv_com_todos_custos = serv["Total"] * faktor_proporcional = factor_proporcional = fator_proporcional
             pdf.multi_cell(190, 8, f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')} | Investimento: {formatar_real(valor_serv_com_todos_custos)}")
     
     pdf.ln(4)
@@ -369,7 +368,6 @@ with aba_orc_geral:
         for serv in st.session_state.servicos_orcamento:
             if serv["Bônus"]:
                 valor_bonus_inflado_linha = serv["Total"] * fator_proporcional
-                # CORREÇÃO DA LARGURA: Modificada para 190
                 pdf.multi_cell(190, 8, f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')} | Valor Real com Diluicao: {formatar_real(valor_bonus_inflado_linha)} -> INCLUSO COMO CORTESIA")
     else:
         pdf.cell(0, 8, "Nenhuma atividade de bonus registrada para este projeto.", ln=True)
@@ -379,7 +377,6 @@ with aba_orc_geral:
     pdf.cell(0, 8, "MATERIAIS E INSUMOS COMPLEMENTARES:", ln=True)
     pdf.set_font("Helvetica", "", 11)
     for mat in st.session_state.materiais_orcamento:
-        # CORREÇÃO DA LARGURA: Modificada para 190
         pdf.multi_cell(190, 8, f"-> {mat['Material']} | Qtd: {mat['Qtd']} UN | Preco Unitario: {formatar_real(mat['Preço'])} | Total: {formatar_real(mat['Total'])}")
     
     pdf.ln(8)
@@ -443,7 +440,7 @@ with aba_orc_geral:
     with col_d2:
         st.link_button("💬 Enviar via WhatsApp", LINK_WHATSAPP)
 # ==============================================================================
-# BLOCO 11: RETAGUARDA CRUD SIMPLIFICADA SEM O CAMPO MARCA NOS PRODUTOS
+# BLOCO 11: RETAGUARDA CRUD CORRIGIDA CONTRA ERROS DE TIPO LIST UNHASHABLE (FIXED)
 # ==============================================================================
 def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio):
     with nome_aba:
@@ -451,7 +448,8 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
         dados_atuais = carregar_dados(nome_arquivo_csv)
         df_crud = pd.DataFrame(dados_atuais) if dados_atuais else pd.DataFrame(columns=campos_lista)
         
-        chave_busca = campos_lista
+        # CORREÇÃO DEFINITIVA DO TYPEERROR DA IMAGEM: chave_busca passa a pegar o primeiro item string puro da lista
+        chave_busca = campos_lista[0]
         
         st.markdown("#### ➕ Adicionar / Modificar Registro")
         
@@ -502,6 +500,7 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
             st.markdown("#### 📋 Registros Armazenados")
             for i, reg in enumerate(dados_atuais):
                 col_reg, col_btn = st.columns(2)
+                # CORREÇÃO DA INDEXAÇÃO DA IMAGEM: Lendo a string pura extraída
                 col_reg.write(f"🔹 **{reg[chave_busca]}** - { {k:v for k,v in reg.items() if k != chave_busca} }")
                 if col_btn.button("🗑️ Excluir", key=f"del_{s_key}_{i}"):
                     df_filtrado_exclusao = pd.DataFrame(dados_atuais).drop(i).reset_index(drop=True)
