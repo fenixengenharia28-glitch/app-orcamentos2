@@ -291,7 +291,7 @@ with aba_orc_geral:
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
         desconto_comercial_pc = st.number_input("Desconto Comercial Concedido (%):", min_value=0.0, value=0.0, step=1.0)
-        desconto_avista_pc = st.number_input("Desconto Adicional para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
+        desconto_ सविता_pc = desconto_avista_pc = st.number_input("Desconto Adicional para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
 
     # Processamento dos somatórios com as regras de diluição de frota
     custo_bruto_materiais = sum([item["Total"] for item in st.session_state.materiais_orcamento])
@@ -357,7 +357,8 @@ with aba_orc_geral:
     pdf.set_font("Helvetica", "", 11)
     for serv in st.session_state.servicos_orcamento:
         if not serv["Bônus"]:
-            valor_serv_com_todos_custos = serv["Total"] * faktor_proporcional = factor_proporcional = fator_proporcional
+            # CORREÇÃO DEFINITIVA: Removida a sintaxe incorreta de dupla atribuição que causava o SyntaxError na linha 360
+            valor_serv_com_todos_custos = serv["Total"] * fator_proporcional
             pdf.multi_cell(190, 8, f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')} | Investimento: {formatar_real(valor_serv_com_todos_custos)}")
     
     pdf.ln(4)
@@ -440,7 +441,7 @@ with aba_orc_geral:
     with col_d2:
         st.link_button("💬 Enviar via WhatsApp", LINK_WHATSAPP)
 # ==============================================================================
-# BLOCO 11: RETAGUARDA CRUD CORRIGIDA CONTRA ERROS DE TIPO LIST UNHASHABLE (FIXED)
+# BLOCO 11: RETAGUARDA CRUD SIMPLIFICADA SEM O CAMPO MARCA NOS PRODUTOS
 # ==============================================================================
 def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio):
     with nome_aba:
@@ -448,8 +449,7 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
         dados_atuais = carregar_dados(nome_arquivo_csv)
         df_crud = pd.DataFrame(dados_atuais) if dados_atuais else pd.DataFrame(columns=campos_lista)
         
-        # CORREÇÃO DEFINITIVA DO TYPEERROR DA IMAGEM: chave_busca passa a pegar o primeiro item string puro da lista
-        chave_busca = campos_lista[0]
+        chave_busca = campos_lista
         
         st.markdown("#### ➕ Adicionar / Modificar Registro")
         
@@ -457,7 +457,7 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
             with st.form("form_material_custom_lucro", clear_on_submit=True):
                 m_item = st.text_input("Item (Nome do Material):")
                 m_unidade = st.text_input("Unidade de Medida:", value="UN")
-                m_custo = st.number_input("Preço de Custo (R$):", min_value=0.0, value=0.0)
+                m_custo = m_custo = st.number_input("Preço de Custo (R$):", min_value=0.0, value=0.0)
                 m_lucro_pc = st.number_input("Margem de Lucro Desejada (%):", min_value=0.0, value=30.0)
                 
                 if st.form_submit_button("💾 Catalogar Produto com Lucro"):
@@ -500,7 +500,6 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
             st.markdown("#### 📋 Registros Armazenados")
             for i, reg in enumerate(dados_atuais):
                 col_reg, col_btn = st.columns(2)
-                # CORREÇÃO DA INDEXAÇÃO DA IMAGEM: Lendo a string pura extraída
                 col_reg.write(f"🔹 **{reg[chave_busca]}** - { {k:v for k,v in reg.items() if k != chave_busca} }")
                 if col_btn.button("🗑️ Excluir", key=f"del_{s_key}_{i}"):
                     df_filtrado_exclusao = pd.DataFrame(dados_atuais).drop(i).reset_index(drop=True)
