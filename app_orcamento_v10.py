@@ -18,6 +18,13 @@ st.set_page_config(
 WHATSAPP_NUMERO = "5531995392027"
 LINK_WHATSAPP = f"https://wa.me{WHATSAPP_NUMERO}"
 URL_QRCODE = f"https://googleapis.com{LINK_WHATSAPP}&choe=UTF-8"
+
+# Função auxiliar para formatação monetária brasileira (BRL)
+def formatar_real(valor):
+    try:
+        return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    except Exception:
+        return f"R$ {valor}"
 # ==============================================================================
 # BLOCO 2: CLASSE DO PDF RECONFIGURADA COM QR CODE EM POSIÇÃO SUPERIOR (Y=6)
 # ==============================================================================
@@ -173,7 +180,7 @@ aba_orc_geral, aba_clientes, aba_mao_obra, aba_materiais, aba_veiculos = st.tabs
     "📋 Orçamento Geral", "👥 Gestão de Clientes", "🛠️ Gestão de Serviços", "🛒 Almoxarifado", "🚚 Frota e Logística"
 ])
 # ==============================================================================
-# BLOCO 6: CENTRAL DO ORÇAMENTO - PARTE 1: SELEÇÃO DE CLIENTE E PRESTAÇÕES
+# BLOCO 6: CENTRAL DO ORÇAMENTO - PARTE 1: SELEÇÃO DE CLIENTE E PRESTAÇÕES (CORRIGIDO)
 # ==============================================================================
 with aba_orc_geral:
     st.subheader("📋 Central Única de Emissão de Orçamentos")
@@ -203,13 +210,14 @@ with aba_orc_geral:
             servico_escolhido = st.selectbox("Escolha qual tipo de serviço será prestado:", lista_servicos_nomes)
             
             linha_filtrada = df_serv_disp[df_serv_disp["Descrição"] == servico_escolhido]
-            unidade_medida_servico = str(linha_filtrada["Unidade"].iloc) if "Unidade" in linha_filtrada.columns else "UN"
+            unidade_medida_servico = str(linha_filtrada["Unidade"].iloc[0]) if "Unidade" in linha_filtrada.columns else "UN"
             
             qtd_servico_solicitado = st.number_input(f"Especifique a quantidade ({unidade_medida_servico}):", min_value=1.0, value=1.0, step=1.0)
             servico_bonus = st.checkbox("Definir esta atividade como BÔNUS do orçamento")
             
             if st.button("➕ Adicionar Serviço ao Escopo"):
-                preco_unitario_servico = float(linha_filtrada["Valor Compra Un. (R$)"].iloc)
+                # CORREÇÃO DEFINITIVA DO TYPEERROR DA IMAGEM: Adicionado o indexador posicional [0] correto após o .iloc
+                preco_unitario_servico = float(linha_filtrada["Valor Compra Un. (R$)"].iloc[0])
                 preco_calculado_linha = preco_unitario_servico * qtd_servico_solicitado
                 
                 st.session_state.servicos_orcamento.append({
@@ -230,7 +238,7 @@ with aba_orc_geral:
                 st.session_state.servicos_orcamento = []
                 st.rerun()
 # ==============================================================================
-# BLOCO 7: CENTRAL DO ORÇAMENTO - PARTE 2: PRODUTOS DO ALMOXARIFADO E LOGÍSTICA
+# BLOCO 7: CENTRAL DO ORÇAMENTO - PARTE 2: PRODUTOS E PREPARAÇÃO LOGÍSTICA
 # ==============================================================================
     with col_o2:
         st.markdown("#### 🛒 Inserir Materiais Necessários")
@@ -238,7 +246,6 @@ with aba_orc_geral:
             lista_m = [m["Item"] for m in st.session_state.materiais]
             m_sel = st.selectbox("Buscar material no Almoxarifado:", lista_m)
             dados_m = next(item for item in st.session_state.materiais if item["Item"] == m_sel)
-            # Puxa automaticamente o Preço Unitário (que já foi salvo com o lucro embutido)
             p_sugerido = dados_m.get("Preço Unitário", 0.0)
         else:
             m_sel = st.text_input("Material (Manual):")
@@ -280,7 +287,7 @@ with aba_orc_geral:
             custo_transporte = (km_r / cons_carro) * preco_combustivel
             depreciacao_veiculo_proporcional = (dep_anual / 365)
 # ==============================================================================
-# BLOCO 8: MOTOR FINANCEIRO - ENGENHARIA DE DISTRIBUIÇÃO E DILUIÇÃO DE CUSTOS
+# BLOCO 8: MOTOR FINANCEIRO - ENGENHARIA DE DISTRIBUIÇÃO E FORMATO REAIS
 # ==============================================================================
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
@@ -315,9 +322,9 @@ with aba_orc_geral:
     st.markdown("---")
     st.markdown("### 📊 Painel Geral de Resumo")
     rm1, rm2, rm3 = st.columns(3)
-    rm1.metric("Mão de Obra Unificada (Normais + Bônus)", f"R$ {valor_composto_mao_de_obra_total:.2f}")
-    rm2.metric("Materiais Coletados", f"R$ {custo_bruto_materiais:.2f}")
-    rm3.metric("VALOR TOTAL FINAL COBRADO", f"R$ {preco_final_cheio:.2f}", delta=f"- R$ {valor_desconto_dinheiro:.2f}" if valor_desconto_dinheiro > 0 else None)
+    rm1.metric("Mão de Obra Unificada (Normais + Bônus)", formatar_real(valor_composto_mao_de_obra_total))
+    rm2.metric("Materiais Coletados", formatar_real(custo_bruto_materiais))
+    rm3.metric("VALOR TOTAL FINAL COBRADO", formatar_real(preco_final_cheio), delta=f"- {formatar_real(valor_desconto_dinheiro)}" if valor_desconto_dinheiro > 0 else None)
 # ==============================================================================
 # BLOCO 9: DESIGN DO PDF A4 - COMPOSIÇÃO FINANCEIRA NARRATIVA COM MULTI-CELL
 # ==============================================================================
@@ -342,7 +349,7 @@ with aba_orc_geral:
     pdf.multi_cell(0, 8.5, f"{orc_descricao if orc_descricao else 'Execucao conforme escopo acordado.'}")
     pdf.ln(8)
 
-    # Detalhamento Nominal sem Planilhas / Sem Prefixos Fixos
+    # Detalhes nominais sem planilhas
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "DETALHAMENTO NOMINAL DOS ITENS DO PROJETO", ln=True)
     
@@ -352,7 +359,7 @@ with aba_orc_geral:
     for serv in st.session_state.servicos_orcamento:
         if not serv["Bônus"]:
             valor_serv_com_todos_custos = serv["Total"] * fator_proporcional
-            pdf.multi_cell(0, 8, f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')} | Investimento: R$ {valor_serv_com_todos_custos:.2f}")
+            pdf.multi_cell(0, 8, f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')} | Investimento: {formatar_real(valor_serv_com_todos_custos)}")
     
     pdf.ln(4)
     pdf.set_font("Helvetica", "B", 11)
@@ -362,7 +369,7 @@ with aba_orc_geral:
         for serv in st.session_state.servicos_orcamento:
             if serv["Bônus"]:
                 valor_bonus_inflado_linha = serv["Total"] * fator_proporcional
-                pdf.multi_cell(0, 8, f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')} | Valor Real com Diluicao: R$ {valor_bonus_inflado_linha:.2f} -> INCLUSO COMO CORTESIA")
+                pdf.multi_cell(0, 8, f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')} | Valor Real com Diluicao: {formatar_real(valor_bonus_inflado_linha)} -> INCLUSO COMO CORTESIA")
     else:
         pdf.cell(0, 8, "Nenhuma atividade de bonus registrada para este projeto.", ln=True)
     
@@ -371,25 +378,25 @@ with aba_orc_geral:
     pdf.cell(0, 8, "MATERIAIS E INSUMOS COMPLEMENTARES:", ln=True)
     pdf.set_font("Helvetica", "", 11)
     for mat in st.session_state.materiais_orcamento:
-        pdf.multi_cell(0, 8, f"-> {mat['Material']} | Qtd: {mat['Qtd']} UN | Preco Unitario: R$ {mat['Preço']:.2f} | Total: R$ {mat['Total']:.2f}")
+        pdf.multi_cell(0, 8, f"-> {mat['Material']} | Qtd: {mat['Qtd']} UN | Preco Unitario: {formatar_real(mat['Preço'])} | Total: {formatar_real(mat['Total'])}")
     
     pdf.ln(8)
     
-    # Composição Financeira com fluxo sequencial de deduções sucessivas
+    # Composição Financeira com deduções sucessivas
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "COMPOSIÇÃO FINANCEIRA DO PROJETO", ln=True)
     pdf.set_font("Helvetica", "", 11)
-    pdf.cell(0, 8, f"Mao de Obra: R$ {valor_composto_mao_de_obra_total:.2f}", ln=True)
-    pdf.cell(0, 8, f"Material: R$ {custo_bruto_materiais:.2f}", ln=True)
-    pdf.cell(0, 8, f"Bonus: - R$ {valor_total_bonus_exibicao:.2f}", ln=True)
-    pdf.cell(0, 8, f"Desconto: - R$ {valor_desconto_dinheiro:.2f}", ln=True)
-    pdf.cell(0, 8, f"Valor Total: R$ {preco_final_cheio:.2f}", ln=True)
+    pdf.cell(0, 8, f"Mao de Obra: {formatar_real(valor_composto_mao_de_obra_total)}", ln=True)
+    pdf.cell(0, 8, f"Material: {formatar_real(custo_bruto_materiais)}", ln=True)
+    pdf.cell(0, 8, f"Bonus: - {formatar_real(valor_total_bonus_exibicao)}", ln=True)
+    pdf.cell(0, 8, f"Desconto: - {formatar_real(valor_desconto_dinheiro)}", ln=True)
+    pdf.cell(0, 8, f"Valor Total: {formatar_real(preco_final_cheio)}", ln=True)
 # ==============================================================================
 # BLOCO 10: ALTERAÇÃO DE RÓTULO COMERCIAL E INJEÇÃO DE CONDIÇÕES DE PAGAMENTO
 # ==============================================================================
     pdf.ln(4)
     pdf.set_font("Helvetica", "B", 12)
-    pdf.cell(0, 10, f"valor total do investimento: R$ {preco_final_cheio:.2f}", ln=True)
+    pdf.cell(0, 10, f"valor total do investimento: {formatar_real(preco_final_cheio)}", ln=True)
     pdf.ln(10)
 
     pdf.cell(0, 10, "CONDIÇÕES DE PAGAMENTO", ln=True)
@@ -397,7 +404,7 @@ with aba_orc_geral:
     pdf.set_font("Helvetica", "B", 10.5)
     pdf.cell(135, 7, "Formas de Pagamento:", ln=True)
     pdf.set_font("Helvetica", "", 10.5)
-    pdf.multi_cell(135, 7, f"OPCAO 01 - A VISTA COM DESCONTO ESPECIAL:\nValor total com desconto aplicado: R$ {preco_final_avista:.2f}\n\nOPCAO 02 - PARCELAMENTO FACILITADO CORPORATIVO:\nPagamento em ate 10x mensais fixas de R$ {valor_parcela_10x:.2f}\nValor total final parcelado: R$ {preco_final_parcelado_com_taxa:.2f}")
+    pdf.multi_cell(135, 7, f"OPCAO 01 - A VISTA COM DESCONTO ESPECIAL:\nValor total com desconto aplicado: {formatar_real(preco_final_avista)}\n\nOPCAO 02 - PARCELAMENTO FACILITADO CORPORATIVO:\nPagamento em ate 10x mensais fixas de {formatar_real(valor_parcela_10x)}\nValor total final parcelado: {formatar_real(preco_final_parcelado_com_taxa)}")
     
     def ler_arquivo_txt(n, d): return open(n, "r", encoding="utf-8").read() if os.path.exists(n) else d
     t_pag = ler_arquivo_txt("pagamento.txt", "A combinar.")
@@ -434,7 +441,7 @@ with aba_orc_geral:
     with col_d2:
         st.link_button("💬 Enviar via WhatsApp", LINK_WHATSAPP)
 # ==============================================================================
-# BLOCO 11: RETAGUARDA CRUD COM MAIS INTELIGÊNCIA CONTÁBIL E PREÇO DE VENDA COM LUCRO
+# BLOCO 11: RETAGUARDA CRUD SIMPLIFICADA SEM O CAMPO MARCA NOS PRODUTOS
 # ==============================================================================
 def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio):
     with nome_aba:
@@ -446,7 +453,6 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
         
         st.markdown("#### ➕ Adicionar / Modificar Registro")
         
-        # Lógica especial para customizar a aba de materiais com margem de lucro
         if nome_arquivo_csv == "materiais.csv":
             with st.form("form_material_custom_lucro", clear_on_submit=True):
                 m_item = st.text_input("Item (Nome do Material):")
@@ -456,7 +462,6 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
                 
                 if st.form_submit_button("💾 Catalogar Produto com Lucro"):
                     if m_item:
-                        # REQUISITO ATUALIZADO: Calcula e embuti de forma síncrona a porcentagem de lucros no preço unitário final de venda
                         preco_venda_calculado = m_custo * (1 + (m_lucro_pc / 100))
                         novo_reg_mat = {
                             "Item": m_item, 
@@ -470,7 +475,7 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
                             df_crud = df_crud[df_crud["Item"] != m_item]
                         df_final_salvar = pd.concat([df_crud, df_novo_registro]).reset_index(drop=True)
                         salvar_no_github("materiais.csv", df_final_salvar, sobrescrever=True)
-                        st.success(f"Produto salvo! Preço de venda gerado: R$ {preco_venda_calculado:.2f}")
+                        st.success(f"Produto salvo! Preço de venda gerado: {formatar_real(preco_venda_calculado)}")
                         st.rerun()
         else:
             with st.form(f"form_crud_{s_key}", clear_on_submit=True):
@@ -504,6 +509,5 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
 
 renderizar_crud(aba_clientes, "cli", "clientes.csv", ["Nome", "Documento", "Contato", "Endereço"], {})
 renderizar_crud(aba_mao_obra, "serv", "servicos.csv", ["Descrição", "Unidade", "Valor Compra Un. (R$)"], {})
-# Configuração interna para os campos padrões da tabela materiais
 renderizar_crud(aba_materiais, "mat", "materiais.csv", ["Item", "Unidade", "Preço Unitário"], {})
 renderizar_crud(aba_veiculos, "vei", "veiculos.csv", ["Modelo", "Placa", "Consumo (Km/L)", "Depreciação Anual Est."], {})
