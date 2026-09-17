@@ -180,7 +180,7 @@ aba_orc_geral, aba_clientes, aba_mao_obra, aba_materiais, aba_veiculos = st.tabs
     "📋 Orçamento Geral", "👥 Gestão de Clientes", "🛠️ Gestão de Serviços", "🛒 Almoxarifado", "🚚 Frota e Logística"
 ])
 # ==============================================================================
-# BLOCO 6: CENTRAL DO ORÇAMENTO - PARTE 1: SELEÇÃO DE CLIENTE E PRESTAÇÕES (CORRIGIDO)
+# BLOCO 6: CENTRAL DO ORÇAMENTO - PARTE 1: SELEÇÃO DE CLIENTE E PRESTAÇÕES
 # ==============================================================================
 with aba_orc_geral:
     st.subheader("📋 Central Única de Emissão de Orçamentos")
@@ -216,7 +216,6 @@ with aba_orc_geral:
             servico_bonus = st.checkbox("Definir esta atividade como BÔNUS do orçamento")
             
             if st.button("➕ Adicionar Serviço ao Escopo"):
-                # CORREÇÃO DEFINITIVA DO TYPEERROR DA IMAGEM: Adicionado o indexador posicional [0] correto após o .iloc
                 preco_unitario_servico = float(linha_filtrada["Valor Compra Un. (R$)"].iloc[0])
                 preco_calculado_linha = preco_unitario_servico * qtd_servico_solicitado
                 
@@ -287,7 +286,7 @@ with aba_orc_geral:
             custo_transporte = (km_r / cons_carro) * preco_combustivel
             depreciacao_veiculo_proporcional = (dep_anual / 365)
 # ==============================================================================
-# BLOCO 8: MOTOR FINANCEIRO - ENGENHARIA DE DISTRIBUIÇÃO E FORMATO REAIS
+# BLOCO 8: MOTOR FINANCEIRO - ENGENHARIA DE DISTRIBUIÇÃO E DILUIÇÃO DE CUSTOS
 # ==============================================================================
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
@@ -326,7 +325,7 @@ with aba_orc_geral:
     rm2.metric("Materiais Coletados", formatar_real(custo_bruto_materiais))
     rm3.metric("VALOR TOTAL FINAL COBRADO", formatar_real(preco_final_cheio), delta=f"- {formatar_real(valor_desconto_dinheiro)}" if valor_desconto_dinheiro > 0 else None)
 # ==============================================================================
-# BLOCO 9: DESIGN DO PDF A4 - COMPOSIÇÃO FINANCEIRA NARRATIVA COM MULTI-CELL
+# BLOCO 9: DESIGN DO PDF A4 - CORREÇÃO CRUCIAL DA LARGURA DO MULTI_CELL (FIXED)
 # ==============================================================================
     pdf = PDFOrcamento(logo_bytes=st.session_state.logo_bytes)
     pdf.set_auto_page_break(auto=True, margin=15)
@@ -346,10 +345,10 @@ with aba_orc_geral:
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "ESCOPO TÉCNICO DA PROPOSTA", ln=True)
     pdf.set_font("Helvetica", "", 11)
-    pdf.multi_cell(0, 8.5, f"{orc_descricao if orc_descricao else 'Execucao conforme escopo acordado.'}")
+    pdf.multi_cell(190, 8.5, f"{orc_descricao if orc_descricao else 'Execucao conforme escopo acordado.'}")
     pdf.ln(8)
 
-    # Detalhes nominais sem planilhas
+    # Detalhes nominais por extenso
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "DETALHAMENTO NOMINAL DOS ITENS DO PROJETO", ln=True)
     
@@ -359,7 +358,8 @@ with aba_orc_geral:
     for serv in st.session_state.servicos_orcamento:
         if not serv["Bônus"]:
             valor_serv_com_todos_custos = serv["Total"] * fator_proporcional
-            pdf.multi_cell(0, 8, f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')} | Investimento: {formatar_real(valor_serv_com_todos_custos)}")
+            # CORREÇÃO CRUCIAL DA IMAGEM: Modificada a largura de 0 para 190 para evitar o erro horizontal do FPDF e corrigido o termo duplicado
+            pdf.multi_cell(190, 8, f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')} | Investimento: {formatar_real(valor_serv_com_todos_custos)}")
     
     pdf.ln(4)
     pdf.set_font("Helvetica", "B", 11)
@@ -369,7 +369,8 @@ with aba_orc_geral:
         for serv in st.session_state.servicos_orcamento:
             if serv["Bônus"]:
                 valor_bonus_inflado_linha = serv["Total"] * fator_proporcional
-                pdf.multi_cell(0, 8, f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')} | Valor Real com Diluicao: {formatar_real(valor_bonus_inflado_linha)} -> INCLUSO COMO CORTESIA")
+                # CORREÇÃO DA LARGURA: Modificada para 190
+                pdf.multi_cell(190, 8, f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')} | Valor Real com Diluicao: {formatar_real(valor_bonus_inflado_linha)} -> INCLUSO COMO CORTESIA")
     else:
         pdf.cell(0, 8, "Nenhuma atividade de bonus registrada para este projeto.", ln=True)
     
@@ -378,11 +379,12 @@ with aba_orc_geral:
     pdf.cell(0, 8, "MATERIAIS E INSUMOS COMPLEMENTARES:", ln=True)
     pdf.set_font("Helvetica", "", 11)
     for mat in st.session_state.materiais_orcamento:
-        pdf.multi_cell(0, 8, f"-> {mat['Material']} | Qtd: {mat['Qtd']} UN | Preco Unitario: {formatar_real(mat['Preço'])} | Total: {formatar_real(mat['Total'])}")
+        # CORREÇÃO DA LARGURA: Modificada para 190
+        pdf.multi_cell(190, 8, f"-> {mat['Material']} | Qtd: {mat['Qtd']} UN | Preco Unitario: {formatar_real(mat['Preço'])} | Total: {formatar_real(mat['Total'])}")
     
     pdf.ln(8)
     
-    # Composição Financeira com deduções sucessivas
+    # Composição Financeira
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "COMPOSIÇÃO FINANCEIRA DO PROJETO", ln=True)
     pdf.set_font("Helvetica", "", 11)
@@ -449,7 +451,7 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
         dados_atuais = carregar_dados(nome_arquivo_csv)
         df_crud = pd.DataFrame(dados_atuais) if dados_atuais else pd.DataFrame(columns=campos_lista)
         
-        chave_busca = campos_lista[0]
+        chave_busca = campos_lista
         
         st.markdown("#### ➕ Adicionar / Modificar Registro")
         
@@ -499,7 +501,7 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
         if dados_atuais:
             st.markdown("#### 📋 Registros Armazenados")
             for i, reg in enumerate(dados_atuais):
-                col_reg, col_btn = st.columns([4, 1])
+                col_reg, col_btn = st.columns(2)
                 col_reg.write(f"🔹 **{reg[chave_busca]}** - { {k:v for k,v in reg.items() if k != chave_busca} }")
                 if col_btn.button("🗑️ Excluir", key=f"del_{s_key}_{i}"):
                     df_filtrado_exclusao = pd.DataFrame(dados_atuais).drop(i).reset_index(drop=True)
