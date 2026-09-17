@@ -54,7 +54,6 @@ class PDFOrcamento(FPDF):
             if qr_res.status_code == 200:
                 with open("temp_header_qr.png", "wb") as f:
                     f.write(qr_res.content)
-                # REQUISITO ATUALIZADO: Subindo o QR Code do cabeçalho para Y=6
                 self.image("temp_header_qr.png", 172, 6, 28, 28)
                 if os.path.exists("temp_header_qr.png"):
                     os.remove("temp_header_qr.png")
@@ -123,7 +122,6 @@ def carregar_dados(nome_arquivo_csv):
     if os.path.exists(nome_arquivo_csv):
         try:
             df = pd.read_csv(nome_arquivo_csv)
-            # Remove a coluna Marca caso o arquivo legado ainda a possua
             if "Marca" in df.columns:
                 df = df.drop(columns=["Marca"])
             return df.to_dict(orient="records")
@@ -175,7 +173,7 @@ aba_orc_geral, aba_clientes, aba_mao_obra, aba_materiais, aba_veiculos = st.tabs
     "📋 Orçamento Geral", "👥 Gestão de Clientes", "🛠️ Gestão de Serviços", "🛒 Almoxarifado", "🚚 Frota e Logística"
 ])
 # ==============================================================================
-# BLOCO 6: CENTRAL DO ORÇAMENTO - IDENTIFICAÇÃO E ENGENHARIA DE ESCOPO
+# BLOCO 6: CENTRAL DO ORÇAMENTO - PARTE 1: SELEÇÃO DE CLIENTE E PRESTAÇÕES
 # ==============================================================================
 with aba_orc_geral:
     st.subheader("📋 Central Única de Emissão de Orçamentos")
@@ -205,13 +203,13 @@ with aba_orc_geral:
             servico_escolhido = st.selectbox("Escolha qual tipo de serviço será prestado:", lista_servicos_nomes)
             
             linha_filtrada = df_serv_disp[df_serv_disp["Descrição"] == servico_escolhido]
-            unidade_medida_servico = str(linha_filtrada["Unidade"].iloc[0]) if "Unidade" in linha_filtrada.columns else "UN"
+            unidade_medida_servico = str(linha_filtrada["Unidade"].iloc) if "Unidade" in linha_filtrada.columns else "UN"
             
             qtd_servico_solicitado = st.number_input(f"Especifique a quantidade ({unidade_medida_servico}):", min_value=1.0, value=1.0, step=1.0)
             servico_bonus = st.checkbox("Definir esta atividade como BÔNUS do orçamento")
             
             if st.button("➕ Adicionar Serviço ao Escopo"):
-                preco_unitario_servico = float(linha_filtrada["Valor Compra Un. (R$)"].iloc[0])
+                preco_unitario_servico = float(linha_filtrada["Valor Compra Un. (R$)"].iloc)
                 preco_calculado_linha = preco_unitario_servico * qtd_servico_solicitado
                 
                 st.session_state.servicos_orcamento.append({
@@ -232,7 +230,7 @@ with aba_orc_geral:
                 st.session_state.servicos_orcamento = []
                 st.rerun()
 # ==============================================================================
-# BLOCO 7: CENTRAL DO ORÇAMENTO - PARTE 2: PRODUTOS E LOGÍSTICA DE FROTA
+# BLOCO 7: CENTRAL DO ORÇAMENTO - PARTE 2: PRODUTOS DO ALMOXARIFADO E LOGÍSTICA
 # ==============================================================================
     with col_o2:
         st.markdown("#### 🛒 Inserir Materiais Necessários")
@@ -240,14 +238,15 @@ with aba_orc_geral:
             lista_m = [m["Item"] for m in st.session_state.materiais]
             m_sel = st.selectbox("Buscar material no Almoxarifado:", lista_m)
             dados_m = next(item for item in st.session_state.materiais if item["Item"] == m_sel)
-            p_sugerido = dados_m["Preço Unitário"]
+            # Puxa automaticamente o Preço Unitário (que já foi salvo com o lucro embutido)
+            p_sugerido = dados_m.get("Preço Unitário", 0.0)
         else:
             m_sel = st.text_input("Material (Manual):")
             p_sugerido = 0.0
             
         col_mq1, col_mq2 = st.columns(2)
         m_qtd = col_mq1.number_input("Qtd Requerida:", min_value=1, value=1)
-        m_preco = col_mq2.number_input("Preço Unitário (R$):", min_value=0.0, value=float(p_sugerido))
+        m_preco = col_mq2.number_input("Preço Unitário de Venda (R$):", min_value=0.0, value=float(p_sugerido))
         
         if st.button("➕ Adicionar Material à Obra"):
             if m_sel:
@@ -281,14 +280,14 @@ with aba_orc_geral:
             custo_transporte = (km_r / cons_carro) * preco_combustivel
             depreciacao_veiculo_proporcional = (dep_anual / 365)
 # ==============================================================================
-# BLOCO 8: ENGENHARIA FINANCEIRA E PORCENTAGEM DE DESCONTO COMERCIAL
+# BLOCO 8: MOTOR FINANCEIRO - ENGENHARIA DE DISTRIBUIÇÃO E DILUIÇÃO DE CUSTOS
 # ==============================================================================
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
         desconto_comercial_pc = st.number_input("Desconto Comercial Concedido (%):", min_value=0.0, value=0.0, step=1.0)
         desconto_avista_pc = st.number_input("Desconto Adicional para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
 
-    # Processamento e diluição total de frota e custos operacionais
+    # Processamento dos somatórios com as regras de diluição de frota
     custo_bruto_materiais = sum([item["Total"] for item in st.session_state.materiais_orcamento])
     custo_bruto_servicos_total = sum([item["Total"] for item in st.session_state.servicos_orcamento])
     
@@ -320,7 +319,7 @@ with aba_orc_geral:
     rm2.metric("Materiais Coletados", f"R$ {custo_bruto_materiais:.2f}")
     rm3.metric("VALOR TOTAL FINAL COBRADO", f"R$ {preco_final_cheio:.2f}", delta=f"- R$ {valor_desconto_dinheiro:.2f}" if valor_desconto_dinheiro > 0 else None)
 # ==============================================================================
-# BLOCO 9: GERADOR DE PDF NARRATIVO COM SUPORTE A QUEBRA AUTOMÁTICA DE PÁGINAS
+# BLOCO 9: DESIGN DO PDF A4 - COMPOSIÇÃO FINANCEIRA NARRATIVA COM MULTI-CELL
 # ==============================================================================
     pdf = PDFOrcamento(logo_bytes=st.session_state.logo_bytes)
     pdf.set_auto_page_break(auto=True, margin=15)
@@ -336,14 +335,14 @@ with aba_orc_geral:
     pdf.cell(0, 8, f"Endereco da Execucao: {endereco_disp}", ln=True)
     pdf.ln(8)
 
-    # Escopo Técnico - Multi-cell com quebra automática
+    # Escopo Técnico
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "ESCOPO TÉCNICO DA PROPOSTA", ln=True)
     pdf.set_font("Helvetica", "", 11)
     pdf.multi_cell(0, 8.5, f"{orc_descricao if orc_descricao else 'Execucao conforme escopo acordado.'}")
     pdf.ln(8)
 
-    # Detalhamento Nominal sem Planilhas / Prefixos Removidos / Com Multi-cell para descrições completas
+    # Detalhamento Nominal sem Planilhas / Sem Prefixos Fixos
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "DETALHAMENTO NOMINAL DOS ITENS DO PROJETO", ln=True)
     
@@ -352,8 +351,7 @@ with aba_orc_geral:
     pdf.set_font("Helvetica", "", 11)
     for serv in st.session_state.servicos_orcamento:
         if not serv["Bônus"]:
-            valor_serv_com_todos_custos = serv["Total"] * faktor_proporcional = fator_proporcional
-            # REQUISITO ATUALIZADO: Removido prefixo "Mao de Obra para:" e aplicada a quebra automática multi_cell
+            valor_serv_com_todos_custos = serv["Total"] * fator_proporcional
             pdf.multi_cell(0, 8, f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')} | Investimento: R$ {valor_serv_com_todos_custos:.2f}")
     
     pdf.ln(4)
@@ -364,7 +362,6 @@ with aba_orc_geral:
         for serv in st.session_state.servicos_orcamento:
             if serv["Bônus"]:
                 valor_bonus_inflado_linha = serv["Total"] * fator_proporcional
-                # REQUISITO ATUALIZADO: Removido prefixo e aplicada quebra automática
                 pdf.multi_cell(0, 8, f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')} | Valor Real com Diluicao: R$ {valor_bonus_inflado_linha:.2f} -> INCLUSO COMO CORTESIA")
     else:
         pdf.cell(0, 8, "Nenhuma atividade de bonus registrada para este projeto.", ln=True)
@@ -374,12 +371,11 @@ with aba_orc_geral:
     pdf.cell(0, 8, "MATERIAIS E INSUMOS COMPLEMENTARES:", ln=True)
     pdf.set_font("Helvetica", "", 11)
     for mat in st.session_state.materiais_orcamento:
-        # REQUISITO ATUALIZADO: Removido prefixo "Fornecimento de Material:" e aplicada quebra automática
         pdf.multi_cell(0, 8, f"-> {mat['Material']} | Qtd: {mat['Qtd']} UN | Preco Unitario: R$ {mat['Preço']:.2f} | Total: R$ {mat['Total']:.2f}")
     
     pdf.ln(8)
     
-    # Composição Financeira com deduções sucessivas
+    # Composição Financeira com fluxo sequencial de deduções sucessivas
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "COMPOSIÇÃO FINANCEIRA DO PROJETO", ln=True)
     pdf.set_font("Helvetica", "", 11)
@@ -438,7 +434,7 @@ with aba_orc_geral:
     with col_d2:
         st.link_button("💬 Enviar via WhatsApp", LINK_WHATSAPP)
 # ==============================================================================
-# BLOCO 11: RETAGUARDA CRUD SIMPLIFICADA SEM O CAMPO MARCA NOS PRODUTOS
+# BLOCO 11: RETAGUARDA CRUD COM MAIS INTELIGÊNCIA CONTÁBIL E PREÇO DE VENDA COM LUCRO
 # ==============================================================================
 def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio):
     with nome_aba:
@@ -449,23 +445,51 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
         chave_busca = campos_lista[0]
         
         st.markdown("#### ➕ Adicionar / Modificar Registro")
-        with st.form(f"form_crud_{s_key}", clear_on_submit=True):
-            inputs_coletados = {}
-            for campo in campos_lista:
-                if "Valor" in campo or "Preço" in campo or "Consumo" in campo or "Depreciação" in campo:
-                    inputs_coletados[campo] = st.number_input(f"{campo}:", min_value=0.0, value=0.0, key=f"in_{s_key}_{campo}")
-                else:
-                    inputs_coletados[campo] = st.text_input(f"{campo}:", key=f"in_{s_key}_{campo}")
-            
-            if st.form_submit_button("💾 Arquivar Registro no GitHub"):
-                if inputs_coletados[chave_busca]:
-                    df_novo_registro = pd.DataFrame([inputs_coletados])
-                    if not df_crud.empty and chave_busca in df_crud.columns:
-                        df_crud = df_crud[df_crud[chave_busca] != inputs_coletados[chave_busca]]
-                    df_final_salvar = pd.concat([df_crud, df_novo_registro]).reset_index(drop=True)
-                    salvar_no_github(nome_arquivo_csv, df_final_salvar, sobrescrever=True)
-                    st.success("Dados processados e salvos com sucesso!")
-                    st.rerun()
+        
+        # Lógica especial para customizar a aba de materiais com margem de lucro
+        if nome_arquivo_csv == "materiais.csv":
+            with st.form("form_material_custom_lucro", clear_on_submit=True):
+                m_item = st.text_input("Item (Nome do Material):")
+                m_unidade = st.text_input("Unidade de Medida:", value="UN")
+                m_custo = st.number_input("Preço de Custo (R$):", min_value=0.0, value=0.0)
+                m_lucro_pc = st.number_input("Margem de Lucro Desejada (%):", min_value=0.0, value=30.0)
+                
+                if st.form_submit_button("💾 Catalogar Produto com Lucro"):
+                    if m_item:
+                        # REQUISITO ATUALIZADO: Calcula e embuti de forma síncrona a porcentagem de lucros no preço unitário final de venda
+                        preco_venda_calculado = m_custo * (1 + (m_lucro_pc / 100))
+                        novo_reg_mat = {
+                            "Item": m_item, 
+                            "Unidade": m_unidade, 
+                            "Preço de Custo": m_custo, 
+                            "Margem de Lucro (%)": m_lucro_pc,
+                            "Preço Unitário": round(preco_venda_calculado, 2)
+                        }
+                        df_novo_registro = pd.DataFrame([novo_reg_mat])
+                        if not df_crud.empty and "Item" in df_crud.columns:
+                            df_crud = df_crud[df_crud["Item"] != m_item]
+                        df_final_salvar = pd.concat([df_crud, df_novo_registro]).reset_index(drop=True)
+                        salvar_no_github("materiais.csv", df_final_salvar, sobrescrever=True)
+                        st.success(f"Produto salvo! Preço de venda gerado: R$ {preco_venda_calculado:.2f}")
+                        st.rerun()
+        else:
+            with st.form(f"form_crud_{s_key}", clear_on_submit=True):
+                inputs_coletados = {}
+                for campo in campos_lista:
+                    if "Valor" in campo or "Preço" in campo or "Consumo" in campo or "Depreciação" in campo:
+                        inputs_coletados[campo] = st.number_input(f"{campo}:", min_value=0.0, value=0.0, key=f"in_{s_key}_{campo}")
+                    else:
+                        inputs_coletados[campo] = st.text_input(f"{campo}:", key=f"in_{s_key}_{campo}")
+                
+                if st.form_submit_button("💾 Arquivar Registro no GitHub"):
+                    if inputs_coletados[chave_busca]:
+                        df_novo_registro = pd.DataFrame([inputs_coletados])
+                        if not df_crud.empty and chave_busca in df_crud.columns:
+                            df_crud = df_crud[df_crud[chave_busca] != inputs_coletados[chave_busca]]
+                        df_final_salvar = pd.concat([df_crud, df_novo_registro]).reset_index(drop=True)
+                        salvar_no_github(nome_arquivo_csv, df_final_salvar, sobrescrever=True)
+                        st.success("Dados processados e salvos com sucesso!")
+                        st.rerun()
 
         if dados_atuais:
             st.markdown("#### 📋 Registros Armazenados")
@@ -480,6 +504,6 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
 
 renderizar_crud(aba_clientes, "cli", "clientes.csv", ["Nome", "Documento", "Contato", "Endereço"], {})
 renderizar_crud(aba_mao_obra, "serv", "servicos.csv", ["Descrição", "Unidade", "Valor Compra Un. (R$)"], {})
-# REQUISITO ATUALIZADO: Removido o campo "Marca" do Almoxarifado de materiais
+# Configuração interna para os campos padrões da tabela materiais
 renderizar_crud(aba_materiais, "mat", "materiais.csv", ["Item", "Unidade", "Preço Unitário"], {})
 renderizar_crud(aba_veiculos, "vei", "veiculos.csv", ["Modelo", "Placa", "Consumo (Km/L)", "Depreciação Anual Est."], {})
