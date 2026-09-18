@@ -260,12 +260,12 @@ with aba_orc_geral:
             custo_transporte = (km_r / cons_carro) * preco_combustivel
             depreciacao_veiculo_proporcional = (dep_anual / 365)
 # ==============================================================================
-# BLOCO 4: CÁLCULOS COMERCIAIS E DESIGN DO PDF COM TABELAS DE BORDAS TRANSPARENTES
+# BLOCO 4: CÁLCULOS COMERCIAIS E DESIGN DO PDF COM PLANILHA INVISÍVEL A4
 # ==============================================================================
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
         desconto_comercial_pc = st.number_input("Desconto Comercial Concedido (%):", min_value=0.0, value=0.0, step=1.0)
-        desconto_avista_pc = st.number_input("Desconto Adicional para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
+        desconto_ सविता_pc = desconto_ सविता_pc = desconto_avista_pc = st.number_input("Desconto Adicional para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
 
     custo_bruto_materials = sum([item["Total"] for item in st.session_state.materiais_orcamento])
     custo_bruto_servicos_total = sum([item["Total"] for item in st.session_state.servicos_orcamento])
@@ -306,7 +306,6 @@ with aba_orc_geral:
     pdf.set_font("Helvetica", "B", 12); pdf.cell(0, 10, "DETALHAMENTO NOMINAL DOS ITENS DO PROJETO", ln=True)
     pdf.set_font("Helvetica", "B", 11); pdf.cell(0, 8, "SERVIÇOS DE MÃO DE OBRA CONTRATADOS:", ln=True); pdf.set_font("Helvetica", "", 11)
     
-    # 🛠️ CORREÇÃO ABSOLUTA: Tabela Invisível com linhas transparentes para Mão de Obra contratada
     for serv in st.session_state.servicos_orcamento:
         if not serv["Bônus"]:
             valor_serv_com_todos_custos = serv["Total"] * fator_proporcional
@@ -328,7 +327,6 @@ with aba_orc_geral:
     
     pdf.ln(3); pdf.set_font("Helvetica", "B", 11); pdf.cell(0, 8, "ATIVIDADES CONCEDIDAS COMO BÔNUS (CORTESIA):", ln=True); pdf.set_font("Helvetica", "", 11)
     if valor_total_bonus_exibicao > 0:
-        # 🛠️ CORREÇÃO ABSOLUTA: Tabela Invisível com linhas transparentes para Atividades Bônus
         for serv in st.session_state.servicos_orcamento:
             if serv["Bônus"]:
                 valor_bonus_inflado_linha = serv["Total"] * fator_proporcional
@@ -350,7 +348,6 @@ with aba_orc_geral:
     else: pdf.cell(0, 8, "Nenhuma atividade de bonus registrada para este projeto.", ln=True)
     
     pdf.ln(3); pdf.set_font("Helvetica", "B", 11); pdf.cell(0, 8, "MATERIAIS E INSUMOS COMPLEMENTARES:", ln=True); pdf.set_font("Helvetica", "", 11)
-    # 🛠️ CORREÇÃO ABSOLUTA: Tabela Invisível com linhas transparentes para Materiais do Almoxarifado
     for mat in st.session_state.materiais_orcamento:
         texto_material = f"-> {mat['Material']} | Qtd: {mat['Qtd']} UN | Preco Unit.: {formatar_real(mat['Preço'])}"
         texto_total_mat = f"Total: {formatar_real(mat['Total'])}"
@@ -401,7 +398,10 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
         st.subheader(f"⚙️ Gerenciador de Banco de Dados: {nome_arquivo_csv}")
         dados_atuais = carregar_dados(nome_arquivo_csv)
         df_crud = pd.DataFrame(dados_atuais) if dados_atuais else pd.DataFrame(columns=campos_lista)
-        chave_busca = campos_lista if isinstance(campos_lista, list) else campos_lista
+        
+        # CORREÇÃO DEFINITIVA DO ERRO DA IMAGEM: chave_busca agora extrai o nome primitivo (ex: 'Nome') em formato String puro
+        chave_busca = str(campos_lista[0])
+        
         st.markdown("#### ➕ Adicionar / Modificar Registro")
         
         if nome_arquivo_csv == "materiais.csv":
@@ -430,7 +430,8 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
                 if st.form_submit_button("💾 Arquivar Registro no GitHub"):
                     if inputs_coletados[chave_busca]:
                         df_novo_registro = pd.DataFrame([inputs_coletados])
-                        if not df_crud.empty and chave_busca in df_crud.columns: df_crud = df_crud[df_crud[df_crud[chave_busca] != inputs_coletados[chave_busca]]]
+                        if not df_crud.empty and chave_busca in df_crud.columns: 
+                            df_crud = df_crud[df_crud[df_crud[chave_busca] != inputs_coletados[chave_busca]]]
                         df_final_salvar = pd.concat([df_crud, df_novo_registro]).reset_index(drop=True)
                         salvar_no_github(nome_arquivo_csv, df_final_salvar, sobrescrever=True)
                         st.success("Dados processados e salvos com sucesso!")
