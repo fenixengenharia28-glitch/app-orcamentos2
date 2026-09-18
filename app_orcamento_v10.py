@@ -141,9 +141,7 @@ def carregar_dados(nome_arquivo_csv):
             return df.to_dict(orient="records")
         except Exception: return []
     return []
-# ==============================================================================
-# BLOCO 6: CARREGAMENTO DA LOGO E CRIAÇÃO DOS ESTADOS DE MEMÓRIA (SESSION_STATE)
-# ==============================================================================
+
 def carregar_logo_persistida():
     try:
         token = st.secrets["GITHUB_TOKEN"].strip()
@@ -166,7 +164,7 @@ if 'materiais_orcamento' not in st.session_state: st.session_state.materiais_orc
 if 'servicos_orcamento' not in st.session_state: st.session_state.servicos_orcamento = []
 if 'logo_bytes' not in st.session_state: st.session_state.logo_bytes = carregar_logo_persistida()
 # ==============================================================================
-# BLOCO 7: RENDERIZAÇÃO GRÁFICA DO TOPO DA TELA E CRIAÇÃO DAS ABAS DO STREAMLIT
+# BLOCO 6: RENDERIZAÇÃO GRÁFICA DO TOPO DA TELA E CRIAÇÃO DAS ABAS DO STREAMLIT
 # ==============================================================================
 col_topo1, col_topo2 = st.columns(2)
 with col_topo1:
@@ -187,7 +185,7 @@ aba_orc_geral, aba_clientes, aba_mao_obra, aba_materiais, aba_veiculos = st.tabs
     "📋 Orçamento Geral", "👥 Gestão de Clientes", "🛠️ Gestão de Serviços", "🛒 Almoxarifado", "🚚 Frota e Logística"
 ])
 # ==============================================================================
-# BLOCO 8: ABA ORÇAMENTO - IDENTIFICAÇÃO DO CLIENTE E INCLUSÃO DE SERVIÇOS
+# BLOCO 7: ABA ORÇAMENTO - IDENTIFICAÇÃO DO CLIENTE E INCLUSÃO DE SERVIÇOS
 # ==============================================================================
 with aba_orc_geral:
     st.subheader("📋 Central Única de Emissão de Orçamentos")
@@ -215,12 +213,12 @@ with aba_orc_geral:
             servico_escolhido = st.selectbox("Escolha qual tipo de serviço será prestado:", lista_servicos_nomes)
             linha_filtrada = df_serv_disp[df_serv_disp["Descrição"] == servico_escolhido]
             
-            unidade_medida_servico = str(linha_filtrada["Unidade"].values[0]) if "Unidade" in linha_filtrada.columns else "UN"
+            unidade_medida_servico = str(linha_filtrada["Unidade"].values) if "Unidade" in linha_filtrada.columns else "UN"
             qtd_servico_solicitado = st.number_input(f"Especifique a quantidade ({unidade_medida_servico}):", min_value=1.0, value=1.0, step=1.0)
             servico_bonus = st.checkbox("Definir esta atividade como BÔNUS do orçamento")
             
             if st.button("➕ Adicionar Serviço ao Escopo"):
-                preco_unitario_servico = float(linha_filtrada["Valor Compra Un. (R$)"].values[0])
+                preco_unitario_servico = float(linha_filtrada["Valor Compra Un. (R$)"].values)
                 preco_calculado_linha = preco_unitario_servico * qtd_servico_solicitado
                 st.session_state.servicos_orcamento.append({
                     "Descrição": servico_escolhido, "Quantidade": int(qtd_servico_solicitado),
@@ -233,7 +231,7 @@ with aba_orc_geral:
             st.dataframe(pd.DataFrame(st.session_state.servicos_orcamento), use_container_width=True)
             if st.button("🗑️ Limpar Lista de Serviços"): st.session_state.servicos_orcamento = []; st.rerun()
 # ==============================================================================
-# BLOCO 9: ABA ORÇAMENTO - REQUISIÇÃO DE PRODUTOS E INTEGRAÇÃO DE CUSTOS DE FROTA
+# BLOCO 8: ABA ORÇAMENTO - REQUISIÇÃO DE PRODUTOS E INTEGRAÇÃO DE CUSTOS DE FROTA
 # ==============================================================================
     with col_o2:
         st.markdown("#### 🛒 Inserir Materiais Necessários")
@@ -272,13 +270,13 @@ with aba_orc_geral:
             custo_transporte = (km_r / cons_carro) * preco_combustivel
             depreciacao_veiculo_proporcional = (dep_anual / 365)
 # ==============================================================================
-# BLOCO 10: MOTOR FINANCEIRO DE CÁLCULO - CORREÇÃO CRUCIAL DA SINTAXE DA LINHA 281
+# BLOCO 9: MOTOR FINANCEIRO DE CÁLCULO - REMOÇÃO CRUCIAL DA SINTAXE DA LINHA 281 (FIXED)
 # ==============================================================================
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
         desconto_comercial_pc = st.number_input("Desconto Comercial Concedido (%):", min_value=0.0, value=0.0, step=1.0)
-        # CORREÇÃO DEFINITIVA DO SYNTAXERROR DA IMAGEM: Limpeza completa de qualquer caractere corrompido ou string oculta
-        desconto_ सविता_pc = desconto_avista_pc = st.number_input("Desconto Adicional para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
+        # CORREÇÃO DEFINITIVA DA LINHA 281 DA PROPOSTA ORIGINAL: Saneamento total dos caracteres inválidos
+        desconto_avista_pc = st.number_input("Desconto Adicional para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
 
     custo_bruto_materials = sum([item["Total"] for item in st.session_state.materiais_orcamento])
     custo_bruto_servicos_total = sum([item["Total"] for item in st.session_state.servicos_orcamento])
@@ -306,7 +304,7 @@ with aba_orc_geral:
     rm2.metric("Materiais Coletados", formatar_real(custo_bruto_materials))
     rm3.metric("VALOR TOTAL FINAL COBRADO", formatar_real(preco_final_cheio), delta=f"- {formatar_real(valor_desconto_dinheiro)}" if valor_desconto_dinheiro > 0 else None)
 # ==============================================================================
-# BLOCO 11: CONSTRUÇÃO NARRATIVA DO PDF COM ITENS ALINHADOS UM ABAIXO DO OUTRO
+# BLOCO 10: CONSTRUÇÃO NARRATIVA DO PDF COM ITENS ALINHADOS UM ABAIXO DO OUTRO
 # ==============================================================================
     pdf = PDFOrcamento(logo_bytes=st.session_state.logo_bytes)
     pdf.set_auto_page_break(auto=True, margin=15); pdf.add_page()
@@ -363,7 +361,7 @@ with aba_orc_geral:
     with col_d1: st.download_button(label="📥 Baixar Orçamento Customizado em PDF", data=bytes(pdf_output), file_name=f"Orcamento_Fenix_{cli_sel.replace(' ', '_')}.pdf", mime="application/pdf")
     with col_d2: st.link_button("💬 Enviar via WhatsApp", LINK_WHATSAPP)
 # ==============================================================================
-# BLOCO 12: RETAGUARDA OPERACIONAL - CADASTROS CRUD COM IDENTIFICAÇÃO STR CORRIGIDA
+# BLOCO 11: RETAGUARDA OPERACIONAL - CADASTROS CRUD COM IDENTIFICAÇÃO STR CORRIGIDA
 # ==============================================================================
 def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio):
     with nome_aba:
@@ -417,6 +415,6 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
                     st.session_state[s_key] = carregar_dados(nome_arquivo_csv); st.rerun()
 
 renderizar_crud(aba_clientes, "clientes", "clientes.csv", ["Nome", "Documento", "Contato", "Endereço"], {})
-renderizar_crud(aba_mao_obra, "servicos", "servicos.csv", ["Descrição", "Unidade", "Valor Compra Un. (R$)"], {})
+renderizar_crud(aba_mao_obra, "servicos", "servicos.csv", ["Descrição", "Unidade", "Valor Comprar Un. (R$)"], {})
 renderizar_crud(aba_materiais, "materiais", "materiais.csv", ["Item", "Unidade", "Preço Unitário"], {})
 renderizar_crud(aba_veiculos, "veiculos", "veiculos.csv", ["Modelo", "Placa", "Consumo (Km/L)", "Depreciação Anual Est."], {})
