@@ -1,5 +1,5 @@
 # ==============================================================================
-# BLOCO 1: IMPORTAÇÕES, CONFIGURAÇÃO DA PÁGINA E FUNÇÃO MONETÁRIA
+# BLOCO 1: IMPORTAÇÕES, DEPENDÊNCIAS, FUNÇÃO MONETÁRIA E ESTRUTURA BASE DO PDF
 # ==============================================================================
 import streamlit as st
 import pandas as pd
@@ -24,23 +24,12 @@ def formatar_real(valor):
         return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     except Exception:
         return f"R$ {valor}"
-# ==============================================================================
-# BLOCO 2: CLASSE DO PDF RECONFIGURADA COM SUPORTE OPERACIONAL A4
-# ==============================================================================
+
 class PDFOrcamento(FPDF):
     def __init__(self, logo_bytes=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.logo_bytes = logo_bytes
 
-    def footer(self):
-        self.set_y(-15)
-        self.set_draw_color(220, 220, 220)
-        self.line(10, 282, 200, 282)
-        self.set_font("Helvetica", "I", 8)
-        self.cell(0, 10, f"FENIX ENGENHARIA E COMERCIO LTDA - Página {self.page_no()}/{{nb}}", align="C")
-# ==============================================================================
-# BLOCO 3: MÉTODO DE CABEÇALHO DO PDF (QR CODE ELEVADO PARA Y=6)
-# ==============================================================================
     def header(self):
         if self.logo_bytes:
             with open("temp_logo.png", "wb") as f:
@@ -52,20 +41,15 @@ class PDFOrcamento(FPDF):
         self.set_y(8)
         self.set_font("Helvetica", "B", 12)  
         self.cell(0, 5, "FENIX ENGENHARIA E COMERCIO LTDA", ln=True, align="C")
-        
         self.set_font("Helvetica", "B", 8.5)
         self.cell(0, 4, "CNPJ: 52.769.953/0001-12", ln=True, align="C")
-        
         self.set_font("Helvetica", "", 8)
         self.cell(0, 4, "Av. Getulio Vargas, nº 671, 9º Andar, Sala 1051, Savassi - Belo Horizonte - MG", ln=True, align="C")
         self.cell(0, 4, "Cep: 30112-021 / Tel: (31) 99539-2027 / E-mail: fenixengenharia28@gmail.com", ln=True, align="C")
-        
         self.ln(3) 
         self.set_font("Helvetica", "B", 10)
         self.cell(0, 5, "PRESTAÇÃO DE SERVIÇOS ELÉTRICOS E ENGENHARIA", ln=True, align="C")
-# ==============================================================================
-# BLOCO 4: RENDERIZAÇÃO DO QR CODE E LINHA SEPARADORA DO PDF
-# ==============================================================================
+        
         try:
             qr_res = requests.get(URL_QRCODE, timeout=5)
             if qr_res.status_code == 200:
@@ -84,8 +68,15 @@ class PDFOrcamento(FPDF):
         self.set_line_width(0.3)
         self.line(10, 39, 200, 39)
         self.set_y(44)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_draw_color(220, 220, 220)
+        self.line(10, 282, 200, 282)
+        self.set_font("Helvetica", "I", 8)
+        self.cell(0, 10, f"FENIX ENGENHARIA E COMERCIO LTDA - Página {self.page_no()}/{{nb}}", align="C")
 # ==============================================================================
-# BLOCO 5: FUNÇÃO DE SALVAMENTO SÍNCRONO NO REPOSITÓRIO GITHUB VIA API
+# BLOCO 2: MOTOR DE INTEGRACAO COM GITHUB API (CARGA E SALVAMENTO DE TABELAS)
 # ==============================================================================
 def salvar_no_github(nome_arquivo_csv, df_novo, sobrescrever=False):
     try:
@@ -99,9 +90,6 @@ def salvar_no_github(nome_arquivo_csv, df_novo, sobrescrever=False):
     url = f"https://github.com{repo}/contents/{nome_arquivo_csv}"
     headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
     sha = None
-# ==============================================================================
-# BLOCO 6: PROCESSAMENTO DE CONTEÚDO BASE64 E ATUALIZAÇÃO DO REPOSITÓRIO
-# ==============================================================================
     try:
         response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
@@ -128,9 +116,7 @@ def salvar_no_github(nome_arquivo_csv, df_novo, sobrescrever=False):
         if isinstance(df_novo, pd.DataFrame):
             df_novo.to_csv(nome_arquivo_csv, index=False, encoding="utf-8")
         return False
-# ==============================================================================
-# BLOCO 7: CARREGAMENTO DE PERSISTÊNCIA DIRETO DO HISTÓRICO DO GITHUB
-# ==============================================================================
+
 def carregar_dados(nome_arquivo_csv):
     try:
         token = st.secrets["GITHUB_TOKEN"].strip()
@@ -153,9 +139,7 @@ def carregar_dados(nome_arquivo_csv):
             return df.to_dict(orient="records")
         except Exception: return []
     return []
-# ==============================================================================
-# BLOCO 8: CARREGAMENTO DA LOGO E CRIAÇÃO DOS ESTADOS DE MEMÓRIA (SESSION_STATE)
-# ==============================================================================
+
 def carregar_logo_persistida():
     try:
         token = st.secrets["GITHUB_TOKEN"].strip()
@@ -178,7 +162,7 @@ if 'materiais_orcamento' not in st.session_state: st.session_state.materiais_orc
 if 'servicos_orcamento' not in st.session_state: st.session_state.servicos_orcamento = []
 if 'logo_bytes' not in st.session_state: st.session_state.logo_bytes = carregar_logo_persistida()
 # ==============================================================================
-# BLOCO 9: GERENCIAMENTO GRÁFICO SUPERIOR E CRIAÇÃO DAS ABAS OPERACIONAIS
+# BLOCO 3: SELEÇÃO DE CLIENTE, INCLUSÃO DE MÃO DE OBRA, PRODUTOS E LOGÍSTICA
 # ==============================================================================
 col_topo1, col_topo2 = st.columns(2)
 with col_topo1:
@@ -198,9 +182,7 @@ with col_topo2:
 aba_orc_geral, aba_clientes, aba_mao_obra, aba_materiais, aba_veiculos = st.tabs([
     "📋 Orçamento Geral", "👥 Gestão de Clientes", "🛠️ Gestão de Serviços", "🛒 Almoxarifado", "🚚 Frota e Logística"
 ])
-# ==============================================================================
-# BLOCO 10: ABA ORÇAMENTO - IDENTIFICAÇÃO E AGREGADOR DE MÃO DE OBRA (.ILOC[0] CORRIGIDO)
-# ==============================================================================
+
 with aba_orc_geral:
     st.subheader("📋 Central Única de Emissão de Orçamentos")
     col_o1, col_o2 = st.columns(2)
@@ -243,9 +225,7 @@ with aba_orc_geral:
         if st.session_state.servicos_orcamento:
             st.dataframe(pd.DataFrame(st.session_state.servicos_orcamento), use_container_width=True)
             if st.button("🗑️ Limpar Lista de Serviços"): st.session_state.servicos_orcamento = []; st.rerun()
-# ==============================================================================
-# BLOCO 11: ABA ORÇAMENTO - BUSCA DE INSUMOS E PARAMETRIZAÇÃO DE LOGÍSTICA
-# ==============================================================================
+
     with col_o2:
         st.markdown("#### 🛒 Inserir Materiais Necessários")
         if st.session_state.materiais:
@@ -283,7 +263,7 @@ with aba_orc_geral:
             custo_transporte = (km_r / cons_carro) * preco_combustivel
             depreciacao_veiculo_proporcional = (dep_anual / 365)
 # ==============================================================================
-# BLOCO 12: ABA ORÇAMENTO - ENGENHARIA FINANCEIRA DE DILUIÇÃO E DESCONTO (%)
+# BLOCO 4: MOTOR COMERCIAL DE CÁLCULO E RENDERIZAÇÃO DE TEXTOS DO PDF A4
 # ==============================================================================
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
@@ -306,7 +286,7 @@ with aba_orc_geral:
     preco_final_cheio = subtotal_faturavel_base - valor_desconto_dinheiro
     if preco_final_cheio < 0: preco_final_cheio = 0.0
     
-    preco_final_ सविता = preco_final_avista = preco_final_cheio * (1 - (desconto_avista_pc / 100))
+    preco_final_avista = preco_final_cheio * (1 - (desconto_avista_pc / 100))
     preco_final_parcelado_com_taxa = preco_final_cheio * 1.08
     valor_parcela_10x = preco_final_parcelado_com_taxa / 10
 
@@ -316,9 +296,7 @@ with aba_orc_geral:
     rm1.metric("Mão de Obra Unificada (Normais + Bônus)", formatar_real(valor_composto_mao_de_obra_total))
     rm2.metric("Materiais Coletados", formatar_real(custo_bruto_materiais))
     rm3.metric("VALOR TOTAL FINAL COBRADO", formatar_real(preco_final_cheio), delta=f"- {formatar_real(valor_desconto_dinheiro)}" if valor_desconto_dinheiro > 0 else None)
-# ==============================================================================
-# BLOCO 13: ESCRITA DO PDF - NARRATIVA, DETALHAMENTO NOMINAL E COMPOSIÇÃO DOS 5 PREÇOS
-# ==============================================================================
+
     pdf = PDFOrcamento(logo_bytes=st.session_state.logo_bytes)
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
@@ -347,7 +325,7 @@ with aba_orc_geral:
         for serv in st.session_state.servicos_orcamento:
             if serv["Bônus"]:
                 valor_bonus_inflado_linha = serv["Total"] * fator_proporcional
-                pdf.multi_cell(190, 8, f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')} | Valor Real com Diluicao: {formatar_real(valor_bonus_inflado_linha)} -> INCLUSO COMO CORTESIA")
+                pdf.multi_cell(190, 8, f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')} | Valor Real com Diluicao: {formatar_real(valor_bonus_inflado_linha)}")
     else: pdf.cell(0, 8, "Nenhuma atividade de bonus registrada para este projeto.", ln=True)
     
     pdf.ln(4); pdf.set_font("Helvetica", "B", 11); pdf.cell(0, 8, "MATERIAIS E INSUMOS COMPLEMENTARES:", ln=True)
@@ -362,9 +340,7 @@ with aba_orc_geral:
     pdf.cell(0, 8, f"Bonus: - {formatar_real(valor_total_bonus_exibicao)}", ln=True)
     pdf.cell(0, 8, f"Desconto: - {formatar_real(valor_desconto_dinheiro)}", ln=True)
     pdf.cell(0, 8, f"Valor Total: {formatar_real(preco_final_cheio)}", ln=True)
-# ==============================================================================
-# BLOCO 14: ESCRITA DO PDF - CONDIÇÕES DE PAGAMENTO, TEXTOS FIXOS E TRIGGER DE DOWNLOAD
-# ==============================================================================
+
     pdf.ln(4); pdf.set_font("Helvetica", "B", 12); pdf.cell(0, 10, f"valor total do investimento: {formatar_real(preco_final_cheio)}", ln=True); pdf.ln(10)
     pdf.cell(0, 10, "CONDIÇÕES DE PAGAMENTO", ln=True); y_condicoes = pdf.get_y()
     pdf.set_font("Helvetica", "B", 10.5); pdf.cell(135, 7, "Formas de Pagamento:", ln=True); pdf.set_font("Helvetica", "", 10.5)
@@ -391,7 +367,7 @@ with aba_orc_geral:
     with col_d1: st.download_button(label="📥 Baixar Orçamento Customizado em PDF", data=bytes(pdf_output), file_name=f"Orcamento_Fenix_{cli_sel.replace(' ', '_')}.pdf", mime="application/pdf")
     with col_d2: st.link_button("💬 Enviar via WhatsApp", LINK_WHATSAPP)
 # ==============================================================================
-# BLOCO 15: RETAGUARDA OPERACIONAL - CRUDS COM FILTRO DE LISTA UNHASHABLE (FIXED)
+# BLOCO 5: CRUDS ADMINISTRATIVOS DE RETAGUARDA TOTALMENTE FILTRADOS (PT-BR)
 # ==============================================================================
 def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio):
     with nome_aba:
@@ -427,7 +403,7 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
                 if st.form_submit_button("💾 Arquivar Registro no GitHub"):
                     if inputs_coletados[chave_busca]:
                         df_novo_registro = pd.DataFrame([inputs_coletados])
-                        if not df_crud.empty and chave_busca in df_crud.columns: df_crud = df_crud[df_crud[chave_busca] != inputs_coletados[chave_busca]]
+                        if not df_crud.empty and chave_busca in df_crud.columns: df_crud = df_crud[df_crud[df_crud[chave_busca] != inputs_coletados[chave_busca]]]
                         df_final_salvar = pd.concat([df_crud, df_novo_registro]).reset_index(drop=True)
                         salvar_no_github(nome_arquivo_csv, df_final_salvar, sobrescrever=True)
                         st.success("Dados processados e salvos com sucesso!")
@@ -445,6 +421,6 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
                     st.session_state[s_key] = carregar_dados(nome_arquivo_csv); st.rerun()
 
 renderizar_crud(aba_clientes, "clientes", "clientes.csv", ["Nome", "Documento", "Contato", "Endereço"], {})
-renderizar_crud(aba_mao_obra, "servicos", "servicos.csv", ["Descrição", "Unidade", "Valor Comprar Un. (R$)"], {})
+renderizar_crud(aba_mao_obra, "servicos", "servicos.csv", ["Descrição", "Unidade", "Valor Compra Un. (R$)"], {})
 renderizar_crud(aba_materiais, "materiais", "materiais.csv", ["Item", "Unidade", "Preço Unitário"], {})
 renderizar_crud(aba_veiculos, "veiculos", "veiculos.csv", ["Modelo", "Placa", "Consumo (Km/L)", "Depreciação Anual Est."], {})
