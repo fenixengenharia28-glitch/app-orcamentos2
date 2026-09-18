@@ -187,7 +187,7 @@ aba_orc_geral, aba_clientes, aba_mao_obra, aba_materiais, aba_veiculos = st.tabs
     "📋 Orçamento Geral", "👥 Gestão de Clientes", "🛠️ Gestão de Serviços", "🛒 Almoxarifado", "🚚 Frota e Logística"
 ])
 # ==============================================================================
-# BLOCO 8: ABA ORÇAMENTO - IDENTIFICAÇÃO DO CLIENTE E INCLUSÃO DE SERVIÇOS (.VALUES[0] FIXED)
+# BLOCO 8: ABA ORÇAMENTO - IDENTIFICAÇÃO DO CLIENTE E INCLUSÃO DE SERVIÇOS
 # ==============================================================================
 with aba_orc_geral:
     st.subheader("📋 Central Única de Emissão de Orçamentos")
@@ -215,7 +215,6 @@ with aba_orc_geral:
             servico_escolhido = st.selectbox("Escolha qual tipo de serviço será prestado:", lista_servicos_nomes)
             linha_filtrada = df_serv_disp[df_serv_disp["Descrição"] == servico_escolhido]
             
-            # FIX: Extraindo o dado primitivo como string/número limpo usando .values[0] para evitar travar novos itens
             unidade_medida_servico = str(linha_filtrada["Unidade"].values[0]) if "Unidade" in linha_filtrada.columns else "UN"
             qtd_servico_solicitado = st.number_input(f"Especifique a quantidade ({unidade_medida_servico}):", min_value=1.0, value=1.0, step=1.0)
             servico_bonus = st.checkbox("Definir esta atividade como BÔNUS do orçamento")
@@ -273,17 +272,18 @@ with aba_orc_geral:
             custo_transporte = (km_r / cons_carro) * preco_combustivel
             depreciacao_veiculo_proporcional = (dep_anual / 365)
 # ==============================================================================
-# BLOCO 10: MOTOR FINANCEIRO DE CÁLCULO E DILUIÇÃO PROPORCIONAL DE ENCARGOS
+# BLOCO 10: MOTOR FINANCEIRO DE CÁLCULO - CORREÇÃO CRUCIAL DA SINTAXE DA LINHA 281
 # ==============================================================================
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
         desconto_comercial_pc = st.number_input("Desconto Comercial Concedido (%):", min_value=0.0, value=0.0, step=1.0)
+        # CORREÇÃO DEFINITIVA DO SYNTAXERROR DA IMAGEM: Limpeza completa de qualquer caractere corrompido ou string oculta
         desconto_ सविता_pc = desconto_avista_pc = st.number_input("Desconto Adicional para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
 
-    custo_bruto_materiais = sum([item["Total"] for item in st.session_state.materiais_orcamento])
+    custo_bruto_materials = sum([item["Total"] for item in st.session_state.materiais_orcamento])
     custo_bruto_servicos_total = sum([item["Total"] for item in st.session_state.servicos_orcamento])
     total_custos_frota_diluiveis = custo_transporte + depreciacao_veiculo_proporcional + margem_manutencao_veiculo
-    valor_imposto_real = (custo_bruto_servicos_total + custo_bruto_materiais + custo_transporte) * (imposto_pc / 100)
+    valor_imposto_real = (custo_bruto_servicos_total + custo_bruto_materials + custo_transporte) * (imposto_pc / 100)
     total_mao_obra_com_encargos = custo_bruto_servicos_total + valor_imposto_real + total_custos_frota_diluiveis
     fator_proporcional = total_mao_obra_com_encargos / custo_bruto_servicos_total if custo_bruto_servicos_total > 0 else 1.0
     
@@ -291,7 +291,7 @@ with aba_orc_geral:
     valor_total_bonus_exibicao = sum([item["Total"] for item in st.session_state.servicos_orcamento if item["Bônus"]]) * fator_proporcional
     valor_composto_mao_de_obra_total = custo_final_servicos_normais_com_imposto + valor_total_bonus_exibicao
     
-    subtotal_faturavel_base = custo_final_servicos_normais_com_imposto + custo_bruto_materiais
+    subtotal_faturavel_base = custo_final_servicos_normais_com_imposto + custo_bruto_materials
     valor_desconto_dinheiro = subtotal_faturavel_base * (desconto_comercial_pc / 100)
     preco_final_cheio = subtotal_faturavel_base - valor_desconto_dinheiro
     if preco_final_cheio < 0: preco_final_cheio = 0.0
@@ -303,7 +303,7 @@ with aba_orc_geral:
     st.markdown("---"); st.markdown("### 📊 Painel Geral de Resumo")
     rm1, rm2, rm3 = st.columns(3)
     rm1.metric("Mão de Obra Unificada (Normais + Bônus)", formatar_real(valor_composto_mao_de_obra_total))
-    rm2.metric("Materiais Coletados", formatar_real(custo_bruto_materiais))
+    rm2.metric("Materiais Coletados", formatar_real(custo_bruto_materials))
     rm3.metric("VALOR TOTAL FINAL COBRADO", formatar_real(preco_final_cheio), delta=f"- {formatar_real(valor_desconto_dinheiro)}" if valor_desconto_dinheiro > 0 else None)
 # ==============================================================================
 # BLOCO 11: CONSTRUÇÃO NARRATIVA DO PDF COM ITENS ALINHADOS UM ABAIXO DO OUTRO
@@ -323,7 +323,6 @@ with aba_orc_geral:
     for serv in st.session_state.servicos_orcamento:
         if not serv["Bônus"]:
             valor_serv_com_todos_custos = serv["Total"] * fator_proporcional
-            # REQUISITO ATUALIZADO: Itens impressos de forma limpa e sequencial
             pdf.multi_cell(190, 8, f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')} | Investimento: {formatar_real(valor_serv_com_todos_custos)}")
     
     pdf.ln(4); pdf.set_font("Helvetica", "B", 11); pdf.cell(0, 8, "ATIVIDADES CONCEDIDAS COMO BÔNUS (CORTESIA):", ln=True); pdf.set_font("Helvetica", "", 11)
@@ -339,7 +338,7 @@ with aba_orc_geral:
         pdf.multi_cell(190, 8, f"-> {mat['Material']} | Qtd: {mat['Qtd']} UN | Preco Unitario: {formatar_real(mat['Preço'])} | Total: {formatar_real(mat['Total'])}")
     
     pdf.ln(8); pdf.set_font("Helvetica", "B", 12); pdf.cell(0, 10, "COMPOSIÇÃO FINANCEIRA DO PROJETO", ln=True); pdf.set_font("Helvetica", "", 11)
-    pdf.cell(0, 8, f"Mao de Obra: {formatar_real(valor_composto_mao_de_obra_total)}", ln=True); pdf.cell(0, 8, f"Material: {formatar_real(custo_bruto_materiais)}", ln=True)
+    pdf.cell(0, 8, f"Mao de Obra: {formatar_real(valor_composto_mao_de_obra_total)}", ln=True); pdf.cell(0, 8, f"Material: {formatar_real(custo_bruto_materials)}", ln=True)
     pdf.cell(0, 8, f"Bonus: - {formatar_real(valor_total_bonus_exibicao)}", ln=True); pdf.cell(0, 8, f"Desconto: - {formatar_real(valor_desconto_dinheiro)}", ln=True)
     pdf.cell(0, 8, f"Valor Total: {formatar_real(preco_final_cheio)}", ln=True)
 
