@@ -185,7 +185,7 @@ aba_orc_geral, aba_clientes, aba_mao_obra, aba_materiais, aba_veiculos = st.tabs
     "📋 Orçamento Geral", "👥 Gestão de Clientes", "🛠️ Gestão de Serviços", "🛒 Almoxarifado", "🚚 Frota e Logística"
 ])
 # ==============================================================================
-# BLOCO 7: ABA ORÇAMENTO - IDENTIFICAÇÃO DO CLIENTE E INCLUSÃO DE SERVIÇOS
+# BLOCO 7: ABA ORÇAMENTO - IDENTIFICAÇÃO DO CLIENTE E INCLUSÃO DE SERVIÇOS (FIXED)
 # ==============================================================================
 with aba_orc_geral:
     st.subheader("📋 Central Única de Emissão de Orçamentos")
@@ -213,12 +213,14 @@ with aba_orc_geral:
             servico_escolhido = st.selectbox("Escolha qual tipo de serviço será prestado:", lista_servicos_nomes)
             linha_filtrada = df_serv_disp[df_serv_disp["Descrição"] == servico_escolhido]
             
-            unidade_medida_servico = str(linha_filtrada["Unidade"].values) if "Unidade" in linha_filtrada.columns else "UN"
+            # CORREÇÃO CRUCIAL DA IMAGEM: Leitura posicional indexada [0] para converter array puro em string e evitar o TypeError
+            unidade_medida_servico = str(linha_filtrada["Unidade"].values[0]) if "Unidade" in linha_filtrada.columns else "UN"
             qtd_servico_solicitado = st.number_input(f"Especifique a quantidade ({unidade_medida_servico}):", min_value=1.0, value=1.0, step=1.0)
             servico_bonus = st.checkbox("Definir esta atividade como BÔNUS do orçamento")
             
             if st.button("➕ Adicionar Serviço ao Escopo"):
-                preco_unitario_servico = float(linha_filtrada["Valor Compra Un. (R$)"].values)
+                # CORREÇÃO CRUCIAL DA IMAGEM: Adicionado o indexador [0] para converter o numpy.ndarray em float puro com segurança
+                preco_unitario_servico = float(linha_filtrada["Valor Compra Un. (R$)"].values[0])
                 preco_calculado_linha = preco_unitario_servico * qtd_servico_solicitado
                 st.session_state.servicos_orcamento.append({
                     "Descrição": servico_escolhido, "Quantidade": int(qtd_servico_solicitado),
@@ -270,12 +272,11 @@ with aba_orc_geral:
             custo_transporte = (km_r / cons_carro) * preco_combustivel
             depreciacao_veiculo_proporcional = (dep_anual / 365)
 # ==============================================================================
-# BLOCO 9: MOTOR FINANCEIRO DE CÁLCULO - REMOÇÃO CRUCIAL DA SINTAXE DA LINHA 281 (FIXED)
+# BLOCO 9: MOTOR FINANCEIRO DE CÁLCULO - PARAMETRIZAÇÃO E FORMATO REAL DE RESUMO
 # ==============================================================================
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
         desconto_comercial_pc = st.number_input("Desconto Comercial Concedido (%):", min_value=0.0, value=0.0, step=1.0)
-        # CORREÇÃO DEFINITIVA DA LINHA 281 DA PROPOSTA ORIGINAL: Saneamento total dos caracteres inválidos
         desconto_avista_pc = st.number_input("Desconto Adicional para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
 
     custo_bruto_materials = sum([item["Total"] for item in st.session_state.materiais_orcamento])
@@ -368,7 +369,7 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
         st.subheader(f"⚙️ Gerenciador de Banco de Dados: {nome_arquivo_csv}")
         dados_atuais = carregar_dados(nome_arquivo_csv)
         df_crud = pd.DataFrame(dados_atuais) if dados_atuais else pd.DataFrame(columns=campos_lista)
-        chave_busca = campos_lista[0]
+        chave_busca = campos_lista
         st.markdown("#### ➕ Adicionar / Modificar Registro")
         
         if nome_arquivo_csv == "materiais.csv":
@@ -415,6 +416,7 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
                     st.session_state[s_key] = carregar_dados(nome_arquivo_csv); st.rerun()
 
 renderizar_crud(aba_clientes, "clientes", "clientes.csv", ["Nome", "Documento", "Contato", "Endereço"], {})
-renderizar_crud(aba_mao_obra, "servicos", "servicos.csv", ["Descrição", "Unidade", "Valor Comprar Un. (R$)"], {})
+# CORREÇÃO DA LINHA DO MÓDULO: Ajustado o nome da coluna para "Valor Compra Un. (R$)" para manter sincronia com o motor financeiro
+renderizar_crud(aba_mao_obra, "servicos", "servicos.csv", ["Descrição", "Unidade", "Valor Compra Un. (R$)"], {})
 renderizar_crud(aba_materiais, "materiais", "materiais.csv", ["Item", "Unidade", "Preço Unitário"], {})
 renderizar_crud(aba_veiculos, "veiculos", "veiculos.csv", ["Modelo", "Placa", "Consumo (Km/L)", "Depreciação Anual Est."], {})
