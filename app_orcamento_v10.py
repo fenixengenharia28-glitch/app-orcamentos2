@@ -331,7 +331,6 @@ with aba_orc_geral:
             if serv["Bônus"]:
                 valor_bonus_inflado_linha = serv["Total"] * fator_proporcional
                 texto_item = f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')}"
-                # 🛠️ ATUALIZAÇÃO CONFORME REQUISITO: Exibindo o valor contábil real do item em vez de "CORTESIA INCLUSA"
                 texto_valor = f"Valor: {formatar_real(valor_bonus_inflado_linha)}"
                 
                 y_inicial = pdf.get_y()
@@ -392,7 +391,7 @@ with aba_orc_geral:
     with col_d1: st.download_button(label="📥 Baixar Orçamento Customizado em PDF", data=bytes(pdf_output), file_name=f"Orcamento_Fenix_{cli_sel.replace(' ', '_')}.pdf", mime="application/pdf")
     with col_d2: st.link_button("💬 Enviar via WhatsApp", LINK_WHATSAPP)
 # ==============================================================================
-# BLOCO 5: RETAGUARDA OPERACIONAL - CADASTROS CRUD COM IDENTIFICAÇÃO EM STRING FIXA
+# BLOCO 5: RETAGUARDA OPERACIONAL - CADASTROS CRUD COM CORREÇÃO DA SINTAXE (FIXED)
 # ==============================================================================
 def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio):
     with nome_aba:
@@ -413,7 +412,9 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
                         preco_venda_calculado = m_custo * (1 + (m_lucro_pc / 100))
                         novo_reg_mat = {"Item": m_item, "Unidade": m_unidade, "Preço de Custo": m_custo, "Margem de Lucro (%)": m_lucro_pc, "Preço Unitário": round(preco_venda_calculado, 2)}
                         df_novo_registro = pd.DataFrame([novo_reg_mat])
-                        if not df_crud.empty family and "Item" in df_crud.columns: df_crud = df_crud[df_crud["Item"] != m_item]
+                        # CORREÇÃO DA LINHA 416 DA IMAGEM: Removida a string inválida estrangeira 'family'
+                        if not df_crud.empty and "Item" in df_crud.columns: 
+                            df_crud = df_crud[df_crud["Item"] != m_item]
                         df_final_salvar = pd.concat([df_crud, df_novo_registro]).reset_index(drop=True)
                         salvar_no_github("materiais.csv", df_final_salvar, sobrescrever=True)
                         st.success(f"Produto salvo! Preço de venda gerado: {formatar_real(preco_venda_calculado)}")
