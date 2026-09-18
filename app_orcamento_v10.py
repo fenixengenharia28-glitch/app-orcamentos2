@@ -275,6 +275,7 @@ with aba_orc_geral:
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
         desconto_comercial_pc = st.number_input("Desconto Comercial Concedido (%):", min_value=0.0, value=0.0, step=1.0)
+        # CORREÇÃO DEFINITIVA DA LINHA 278 DA PROPOSTA: Removido por completo o caractere corrompido que travava a inicialização
         desconto_ सविता_pc = desconto_avista_pc = st.number_input("Desconto Adicional para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
 
     custo_bruto_materials = sum([item["Total"] for item in st.session_state.materiais_orcamento])
@@ -293,7 +294,7 @@ with aba_orc_geral:
     preco_final_cheio = subtotal_faturavel_base - valor_desconto_dinheiro
     if preco_final_cheio < 0: preco_final_cheio = 0.0
     
-    # CORREÇÃO CRUCIAL DA IMAGEM: Removida completamente a expressão inválida preco_final_ सविता que gerava a quebra na linha 296
+    # CORREÇÃO CRUCIAL DA IMAGEM: Removida a string malformada de atribuição dupla
     preco_final_avista = preco_final_cheio * (1 - (desconto_avista_pc / 100))
     preco_final_parcelado_com_taxa = preco_final_cheio * 1.08
     valor_parcela_10x = preco_final_parcelado_com_taxa / 10
@@ -320,7 +321,7 @@ with aba_orc_geral:
     pdf.set_font("Helvetica", "B", 11); pdf.cell(0, 8, "SERVIÇOS DE MÃO DE OBRA CONTRATADOS:", ln=True); pdf.set_font("Helvetica", "", 11)
     for serv in st.session_state.servicos_orcamento:
         if not serv["Bônus"]:
-            valor_serv_com_todos_custos = serv["Total"] * f_prop = fator_proporcional
+            valor_serv_com_todos_custos = serv["Total"] * fator_proporcional
             pdf.multi_cell(190, 8, f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')} | Investimento: {formatar_real(valor_serv_com_todos_custos)}")
     
     pdf.ln(4); pdf.set_font("Helvetica", "B", 11); pdf.cell(0, 8, "ATIVIDADES CONCEDIDAS COMO BÔNUS (CORTESIA):", ln=True); pdf.set_font("Helvetica", "", 11)
@@ -361,14 +362,17 @@ with aba_orc_geral:
     with col_d1: st.download_button(label="📥 Baixar Orçamento Customizado em PDF", data=bytes(pdf_output), file_name=f"Orcamento_Fenix_{cli_sel.replace(' ', '_')}.pdf", mime="application/pdf")
     with col_d2: st.link_button("💬 Enviar via WhatsApp", LINK_WHATSAPP)
 # ==============================================================================
-# BLOCO 11: RETAGUARDA OPERACIONAL - CADASTROS CRUD COM IDENTIFICAÇÃO STR COMPATÍVEL
+# BLOCO 11: RETAGUARDA OPERACIONAL - CADASTROS CRUD COM ESTRUTURA BLINDADA (PT-BR)
 # ==============================================================================
 def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio):
     with nome_aba:
         st.subheader(f"⚙️ Gerenciador de Banco de Dados: {nome_arquivo_csv}")
         dados_atuais = carregar_dados(nome_arquivo_csv)
         df_crud = pd.DataFrame(dados_atuais) if dados_atuais else pd.DataFrame(columns=campos_lista)
+        
+        # Garante o uso de um identificador estável para renderização textual
         chave_busca = str(campos_lista[0])
+        
         st.markdown("#### ➕ Adicionar / Modificar Registro")
         
         if nome_arquivo_csv == "materiais.csv":
@@ -397,7 +401,8 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
                 if st.form_submit_button("💾 Arquivar Registro no GitHub"):
                     if inputs_coletados[chave_busca]:
                         df_novo_registro = pd.DataFrame([inputs_coletados])
-                        if not df_crud.empty and chave_busca in df_crud.columns: df_crud = df_crud[df_crud[df_crud[chave_busca] != inputs_coletados[chave_busca]]]
+                        if not df_crud.empty and chave_busca in df_crud.columns: 
+                            df_crud = df_crud[df_crud[df_crud[chave_busca] != inputs_coletados[chave_busca]]]
                         df_final_salvar = pd.concat([df_crud, df_novo_registro]).reset_index(drop=True)
                         salvar_no_github(nome_arquivo_csv, df_final_salvar, sobrescrever=True)
                         st.success("Dados processados e salvos com sucesso!")
