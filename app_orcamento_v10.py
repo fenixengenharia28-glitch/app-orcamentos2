@@ -391,14 +391,17 @@ with aba_orc_geral:
     with col_d1: st.download_button(label="📥 Baixar Orçamento Customizado em PDF", data=bytes(pdf_output), file_name=f"Orcamento_Fenix_{cli_sel.replace(' ', '_')}.pdf", mime="application/pdf")
     with col_d2: st.link_button("💬 Enviar via WhatsApp", LINK_WHATSAPP)
 # ==============================================================================
-# BLOCO 5: RETAGUARDA OPERACIONAL - CADASTROS CRUD COM CORREÇÃO DA SINTAXE (FIXED)
+# BLOCO 5: RETAGUARDA OPERACIONAL - CADASTROS CRUD CORRIGIDOS DE FORMA DEFINITIVA
 # ==============================================================================
 def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio):
     with nome_aba:
         st.subheader(f"⚙️ Gerenciador de Banco de Dados: {nome_arquivo_csv}")
         dados_atuais = carregar_dados(nome_arquivo_csv)
         df_crud = pd.DataFrame(dados_atuais) if dados_atuais else pd.DataFrame(columns=campos_lista)
-        chave_busca = str(campos_lista)
+        
+        # CORREÇÃO CRUCIAL PARA ELIMINAR O KEYERROR: chave_busca agora recebe a string pura da primeira coluna real do catálogo
+        chave_busca = str(campos_lista[0])
+        
         st.markdown("#### ➕ Adicionar / Modificar Registro")
         
         if nome_arquivo_csv == "materiais.csv":
@@ -412,9 +415,7 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
                         preco_venda_calculado = m_custo * (1 + (m_lucro_pc / 100))
                         novo_reg_mat = {"Item": m_item, "Unidade": m_unidade, "Preço de Custo": m_custo, "Margem de Lucro (%)": m_lucro_pc, "Preço Unitário": round(preco_venda_calculado, 2)}
                         df_novo_registro = pd.DataFrame([novo_reg_mat])
-                        # CORREÇÃO DA LINHA 416 DA IMAGEM: Removida a string inválida estrangeira 'family'
-                        if not df_crud.empty and "Item" in df_crud.columns: 
-                            df_crud = df_crud[df_crud["Item"] != m_item]
+                        if not df_crud.empty and "Item" in df_crud.columns: df_crud = df_crud[df_crud["Item"] != m_item]
                         df_final_salvar = pd.concat([df_crud, df_novo_registro]).reset_index(drop=True)
                         salvar_no_github("materiais.csv", df_final_salvar, sobrescrever=True)
                         st.success(f"Produto salvo! Preço de venda gerado: {formatar_real(preco_venda_calculado)}")
@@ -429,8 +430,7 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
                 if st.form_submit_button("💾 Arquivar Registro no GitHub"):
                     if inputs_coletados[chave_busca]:
                         df_novo_registro = pd.DataFrame([inputs_coletados])
-                        if not df_crud.empty and chave_busca in df_crud.columns: 
-                            df_crud = df_crud[df_crud[df_crud[chave_busca] != inputs_coletados[chave_busca]]]
+                        if not df_crud.empty and chave_busca in df_crud.columns: df_crud = df_crud[df_crud[df_crud[chave_busca] != inputs_coletados[chave_busca]]]
                         df_final_salvar = pd.concat([df_crud, df_novo_registro]).reset_index(drop=True)
                         salvar_no_github(nome_arquivo_csv, df_final_salvar, sobrescrever=True)
                         st.success("Dados processados e salvos com sucesso!")
