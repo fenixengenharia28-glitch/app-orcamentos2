@@ -205,12 +205,13 @@ with aba_orc_geral:
             servico_escolhido = st.selectbox("Escolha qual tipo de serviço será prestado:", lista_servicos_nomes)
             linha_filtrada = df_serv_disp[df_serv_disp["Descrição"] == servico_escolhido]
             
-            unidade_medida_servico = str(linha_filtrada["Unidade"].values) if "Unidade" in linha_filtrada.columns and len(linha_filtrada) > 0 else "UN"
+            unidade_medida_servico = str(linha_filtrada["Unidade"].values[0]) if "Unidade" in linha_filtrada.columns and len(linha_filtrada) > 0 else "UN"
             qtd_servico_solicitado = st.number_input(f"Especifique a quantidade ({unidade_medida_servico}):", min_value=1.0, value=1.0, step=1.0)
             servico_bonus = st.checkbox("Definir esta atividade como BÔNUS do orçamento")
             
             if st.button("➕ Adicionar Serviço ao Escopo"):
-                preco_unitario_servico = float(linha_filtrada["Valor Compra Un. (R$)"].values)
+                # CORREÇÃO CRUCIAL DO TYP_ERROR: Indexado com [0] para converter array NumPy de forma limpa e segura em float primitivo
+                preco_unitario_servico = float(linha_filtrada["Valor Compra Un. (R$)"].values[0])
                 preco_calculado_linha = preco_unitario_servico * qtd_servico_solicitado
                 st.session_state.servicos_orcamento.append({
                     "Descrição": servico_escolhido, "Quantidade": int(qtd_servico_solicitado),
@@ -224,7 +225,7 @@ with aba_orc_geral:
             if st.button("🗑️ Limpar Lista de Serviços"): st.session_state.servicos_orcamento = []; st.rerun()
 
     with col_o2:
-        st.markdown("#### 🛒 Inserir Materiais Necessários")
+        st.markdown("#### 🛒 Inserir Materials Necessários")
         if st.session_state.materiais:
             lista_m = [m["Item"] for m in st.session_state.materiais]
             m_sel = st.selectbox("Buscar material no Almoxarifado:", lista_m)
@@ -260,7 +261,7 @@ with aba_orc_geral:
             custo_transporte = (km_r / cons_carro) * preco_combustivel
             depreciacao_veiculo_proporcional = (dep_anual / 365)
 # ==============================================================================
-# BLOCO 4: CÁLCULOS COMERCIAIS E DESIGN DO PDF COM REQUISITO DE VALOR DE BÔNUS NA TABELA
+# BLOCO 4: MOTOR DE CÁLCULO FINANCEIRO E ESTRUTURAÇÃO DE PLANILHA INVISÍVEL NO PDF
 # ==============================================================================
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
@@ -306,6 +307,7 @@ with aba_orc_geral:
     pdf.set_font("Helvetica", "B", 12); pdf.cell(0, 10, "DETALHAMENTO NOMINAL DOS ITENS DO PROJETO", ln=True)
     pdf.set_font("Helvetica", "B", 11); pdf.cell(0, 8, "SERVIÇOS DE MÃO DE OBRA CONTRATADOS:", ln=True); pdf.set_font("Helvetica", "", 11)
     
+    # FORMATO PLANILHA INVISÍVEL: Estruturação em grid para Mão de Obra Contratada
     for serv in st.session_state.servicos_orcamento:
         if not serv["Bônus"]:
             valor_serv_com_todos_custos = serv["Total"] * fator_proporcional
@@ -321,12 +323,12 @@ with aba_orc_geral:
             pdf.set_x(142)
             pdf.cell(58, 6, texto_valor, border=0, ln=True, align="R")
             
-            if y_final > pdf.get_y():
-                pdf.set_y(y_final)
+            if y_final > pdf.get_y(): pdf.set_y(y_final)
             pdf.ln(1.5)
     
     pdf.ln(3); pdf.set_font("Helvetica", "B", 11); pdf.cell(0, 8, "ATIVIDADES CONCEDIDAS COMO BÔNUS (CORTESIA):", ln=True); pdf.set_font("Helvetica", "", 11)
     if valor_total_bonus_exibicao > 0:
+        # FORMATO PLANILHA INVISÍVEL: Estruturação em grid para Atividades de Bônus (Com exibição de Valor real em vez de texto)
         for serv in st.session_state.servicos_orcamento:
             if serv["Bônus"]:
                 valor_bonus_inflado_linha = serv["Total"] * fator_proporcional
@@ -342,12 +344,12 @@ with aba_orc_geral:
                 pdf.set_x(142)
                 pdf.cell(58, 6, texto_valor, border=0, ln=True, align="R")
                 
-                if y_final > pdf.get_y():
-                    pdf.set_y(y_final)
+                if y_final > pdf.get_y(): pdf.set_y(y_final)
                 pdf.ln(1.5)
     else: pdf.cell(0, 8, "Nenhuma atividade de bonus registrada para este projeto.", ln=True)
     
     pdf.ln(3); pdf.set_font("Helvetica", "B", 11); pdf.cell(0, 8, "MATERIAIS E INSUMOS COMPLEMENTARES:", ln=True); pdf.set_font("Helvetica", "", 11)
+    # FORMATO PLANILHA INVISÍVEL: Estruturação em grid para Insumos de Almoxarifado
     for mat in st.session_state.materiais_orcamento:
         texto_material = f"-> {mat['Material']} | Qtd: {mat['Qtd']} UN | Preco Unit.: {formatar_real(mat['Preço'])}"
         texto_total_mat = f"Total: {formatar_real(mat['Total'])}"
@@ -361,8 +363,7 @@ with aba_orc_geral:
         pdf.set_x(142)
         pdf.cell(58, 6, texto_total_mat, border=0, ln=True, align="R")
         
-        if y_final > pdf.get_y():
-            pdf.set_y(y_final)
+        if y_final > pdf.get_y(): pdf.set_y(y_final)
         pdf.ln(1.5)
     
     pdf.ln(8); pdf.set_font("Helvetica", "B", 12); pdf.cell(0, 10, "COMPOSIÇÃO FINANCEIRA DO PROJETO", ln=True); pdf.set_font("Helvetica", "", 11)
@@ -391,7 +392,7 @@ with aba_orc_geral:
     with col_d1: st.download_button(label="📥 Baixar Orçamento Customizado em PDF", data=bytes(pdf_output), file_name=f"Orcamento_Fenix_{cli_sel.replace(' ', '_')}.pdf", mime="application/pdf")
     with col_d2: st.link_button("💬 Enviar via WhatsApp", LINK_WHATSAPP)
 # ==============================================================================
-# BLOCO 5: RETAGUARDA OPERACIONAL - CADASTROS CRUD CORRIGIDOS DE FORMA DEFINITIVA
+# BLOCO 5: RETAGUARDA OPERACIONAL - CADASTROS CRUD CORRIGIDOS (BLINDAGEM DE CHAVE)
 # ==============================================================================
 def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio):
     with nome_aba:
@@ -399,8 +400,8 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
         dados_atuais = carregar_dados(nome_arquivo_csv)
         df_crud = pd.DataFrame(dados_atuais) if dados_atuais else pd.DataFrame(columns=campos_lista)
         
-        # CORREÇÃO CRUCIAL PARA ELIMINAR O KEYERROR: chave_busca agora recebe a string pura da primeira coluna real do catálogo
-        chave_busca = str(campos_lista[0])
+        # CORREÇÃO CRUCIAL DA RETAGUARDA: Extrai de forma dinâmica apenas a primeira string indexada pura da lista (ex: 'Nome' ou 'Item')
+        chave_busca = campos_lista[0] if isinstance(campos_lista, list) else campos_lista
         
         st.markdown("#### ➕ Adicionar / Modificar Registro")
         
@@ -430,7 +431,8 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
                 if st.form_submit_button("💾 Arquivar Registro no GitHub"):
                     if inputs_coletados[chave_busca]:
                         df_novo_registro = pd.DataFrame([inputs_coletados])
-                        if not df_crud.empty and chave_busca in df_crud.columns: df_crud = df_crud[df_crud[df_crud[chave_busca] != inputs_coletados[chave_busca]]]
+                        if not df_crud.empty and chave_busca in df_crud.columns: 
+                            df_crud = df_crud[df_crud[df_crud[chave_busca] != inputs_coletados[chave_busca]]]
                         df_final_salvar = pd.concat([df_crud, df_novo_registro]).reset_index(drop=True)
                         salvar_no_github(nome_arquivo_csv, df_final_salvar, sobrescrever=True)
                         st.success("Dados processados e salvos com sucesso!")
