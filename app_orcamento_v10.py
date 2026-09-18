@@ -222,7 +222,7 @@ with aba_orc_geral:
                 preco_calculado_linha = preco_unitario_servico * qtd_servico_solicitado
                 st.session_state.servicos_orcamento.append({
                     "Descrição": servico_escolhido, "Quantidade": int(qtd_servico_solicitado),
-                    "Unidade": unidade_medida_servico, "Total": preco_calculado_linha,
+                    "Unidade": unidad_medida_servico, "Total": preco_calculado_linha,
                     "Bônus": servico_bonus, "Preço Original": preco_calculado_linha
                 })
                 st.rerun()
@@ -270,13 +270,13 @@ with aba_orc_geral:
             custo_transporte = (km_r / cons_carro) * preco_combustivel
             depreciacao_veiculo_proporcional = (dep_anual / 365)
 # ==============================================================================
-# BLOCO 9: MOTOR FINANCEIRO DE CÁLCULO - CORREÇÃO DEFINITIVA DO SYNTAXERROR (FIXED)
+# BLOCO 9: MOTOR FINANCEIRO DE CÁLCULO - HIGIENIZAÇÃO COMPLETA DAS VARIÁVEIS
 # ==============================================================================
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
         desconto_comercial_pc = st.number_input("Desconto Comercial Concedido (%):", min_value=0.0, value=0.0, step=1.0)
-        # CORREÇÃO DEFINITIVA DA LINHA 278 DA PROPOSTA: Removido por completo o caractere corrompido que travava a inicialização
-        desconto_ सविता_pc = desconto_avista_pc = st.number_input("Desconto Adicional para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
+        # CORREÇÃO DEFINITIVA DA LINHA 279 DA IMAGEM: Removido por completo o caractere inválido e a atribuição dupla
+        desconto_avista_pc = st.number_input("Desconto Adicional para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
 
     custo_bruto_materials = sum([item["Total"] for item in st.session_state.materiais_orcamento])
     custo_bruto_servicos_total = sum([item["Total"] for item in st.session_state.servicos_orcamento])
@@ -294,7 +294,6 @@ with aba_orc_geral:
     preco_final_cheio = subtotal_faturavel_base - valor_desconto_dinheiro
     if preco_final_cheio < 0: preco_final_cheio = 0.0
     
-    # CORREÇÃO CRUCIAL DA IMAGEM: Removida a string malformada de atribuição dupla
     preco_final_avista = preco_final_cheio * (1 - (desconto_avista_pc / 100))
     preco_final_parcelado_com_taxa = preco_final_cheio * 1.08
     valor_parcela_10x = preco_final_parcelado_com_taxa / 10
@@ -343,7 +342,7 @@ with aba_orc_geral:
 
     pdf.ln(4); pdf.set_font("Helvetica", "B", 12); pdf.cell(0, 10, f"valor total do investimento: {formatar_real(preco_final_cheio)}", ln=True); pdf.ln(10)
     pdf.cell(0, 10, "CONDIÇÕES DE PAGAMENTO", ln=True); y_condicoes = pdf.get_y(); pdf.set_font("Helvetica", "B", 10.5); pdf.cell(135, 7, "Formas de Pagamento:", ln=True); pdf.set_font("Helvetica", "", 10.5)
-    pdf.multi_cell(135, 7, f"OPCAO 01 - A VISTA COM DESCONTO ESPECIAL:\nValor total com desconto aplicado: {formatar_real(preco_final_avista)}\n\nOPCAO 02 - PARCELAMENTO FACILITADO CORPORATIVO:\nPagamento em ate 10x mensais fixas de {formatar_real(valor_parcela_10x)}\nValor total final parcelado: {formatar_real(preco_final_parcelado_com_taxa)}")
+    pdf.multi_cell(135, 7, f"OPCAO 01 - A VISTA COM DESCONTO ESPECIAL:\nValor total com desconto applied: {formatar_real(preco_final_avista)}\n\nOPCAO 02 - PARCELAMENTO FACILITADO CORPORATIVO:\nPagamento em ate 10x mensais fixas de {formatar_real(valor_parcela_10x)}\nValor total final parcelado: {formatar_real(preco_final_parcelado_com_taxa)}")
     
     def ler_arquivo_txt(n, d): return open(n, "r", encoding="utf-8").read() if os.path.exists(n) else d
     t_gar = ler_arquivo_txt("garantia.txt", "90 dias."); t_obs = ler_arquivo_txt("observacoes.txt", "Sem alteração estrutural.")
@@ -362,17 +361,14 @@ with aba_orc_geral:
     with col_d1: st.download_button(label="📥 Baixar Orçamento Customizado em PDF", data=bytes(pdf_output), file_name=f"Orcamento_Fenix_{cli_sel.replace(' ', '_')}.pdf", mime="application/pdf")
     with col_d2: st.link_button("💬 Enviar via WhatsApp", LINK_WHATSAPP)
 # ==============================================================================
-# BLOCO 11: RETAGUARDA OPERACIONAL - CADASTROS CRUD COM ESTRUTURA BLINDADA (PT-BR)
+# BLOCO 11: RETAGUARDA OPERACIONAL - CADASTROS CRUD COM IDENTIFICAÇÃO STR COMPATÍVEL
 # ==============================================================================
 def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio):
     with nome_aba:
         st.subheader(f"⚙️ Gerenciador de Banco de Dados: {nome_arquivo_csv}")
         dados_atuais = carregar_dados(nome_arquivo_csv)
         df_crud = pd.DataFrame(dados_atuais) if dados_atuais else pd.DataFrame(columns=campos_lista)
-        
-        # Garante o uso de um identificador estável para renderização textual
-        chave_busca = str(campos_lista[0])
-        
+        chave_busca = campos_lista[0]
         st.markdown("#### ➕ Adicionar / Modificar Registro")
         
         if nome_arquivo_csv == "materiais.csv":
@@ -401,8 +397,7 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
                 if st.form_submit_button("💾 Arquivar Registro no GitHub"):
                     if inputs_coletados[chave_busca]:
                         df_novo_registro = pd.DataFrame([inputs_coletados])
-                        if not df_crud.empty and chave_busca in df_crud.columns: 
-                            df_crud = df_crud[df_crud[df_crud[chave_busca] != inputs_coletados[chave_busca]]]
+                        if not df_crud.empty and chave_busca in df_crud.columns: df_crud = df_crud[df_crud[df_crud[chave_busca] != inputs_coletados[chave_busca]]]
                         df_final_salvar = pd.concat([df_crud, df_novo_registro]).reset_index(drop=True)
                         salvar_no_github(nome_arquivo_csv, df_final_salvar, sobrescrever=True)
                         st.success("Dados processados e salvos com sucesso!")
