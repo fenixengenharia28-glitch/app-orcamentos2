@@ -205,13 +205,12 @@ with aba_orc_geral:
             servico_escolhido = st.selectbox("Escolha qual tipo de serviço será prestado:", lista_servicos_nomes)
             linha_filtrada = df_serv_disp[df_serv_disp["Descrição"] == servico_escolhido]
             
-            unidade_medida_servico = str(linha_filtrada["Unidade"].values[0]) if "Unidade" in linha_filtrada.columns and len(linha_filtrada) > 0 else "UN"
+            unidade_medida_servico = str(linha_filtrada["Unidade"].values) if "Unidade" in linha_filtrada.columns and len(linha_filtrada) > 0 else "UN"
             qtd_servico_solicitado = st.number_input(f"Especifique a quantidade ({unidade_medida_servico}):", min_value=1.0, value=1.0, step=1.0)
             servico_bonus = st.checkbox("Definir esta atividade como BÔNUS do orçamento")
             
             if st.button("➕ Adicionar Serviço ao Escopo"):
-                # CORREÇÃO CRUCIAL DO TYP_ERROR: Indexado com [0] para converter array NumPy de forma limpa e segura em float primitivo
-                preco_unitario_servico = float(linha_filtrada["Valor Compra Un. (R$)"].values[0])
+                preco_unitario_servico = float(linha_filtrada["Valor Compra Un. (R$)"].values)
                 preco_calculado_linha = preco_unitario_servico * qtd_servico_solicitado
                 st.session_state.servicos_orcamento.append({
                     "Descrição": servico_escolhido, "Quantidade": int(qtd_servico_solicitado),
@@ -225,7 +224,7 @@ with aba_orc_geral:
             if st.button("🗑️ Limpar Lista de Serviços"): st.session_state.servicos_orcamento = []; st.rerun()
 
     with col_o2:
-        st.markdown("#### 🛒 Inserir Materials Necessários")
+        st.markdown("#### 🛒 Inserir Materiais Necessários")
         if st.session_state.materiais:
             lista_m = [m["Item"] for m in st.session_state.materiais]
             m_sel = st.selectbox("Buscar material no Almoxarifado:", lista_m)
@@ -261,7 +260,7 @@ with aba_orc_geral:
             custo_transporte = (km_r / cons_carro) * preco_combustivel
             depreciacao_veiculo_proporcional = (dep_anual / 365)
 # ==============================================================================
-# BLOCO 4: MOTOR DE CÁLCULO FINANCEIRO E ESTRUTURAÇÃO DE PLANILHA INVISÍVEL NO PDF
+# BLOCO 4: CÁLCULOS COMERCIAIS E DESIGN DO PDF COM GRIDS DE LINHAS TRANSPARENTES
 # ==============================================================================
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
@@ -307,62 +306,44 @@ with aba_orc_geral:
     pdf.set_font("Helvetica", "B", 12); pdf.cell(0, 10, "DETALHAMENTO NOMINAL DOS ITENS DO PROJETO", ln=True)
     pdf.set_font("Helvetica", "B", 11); pdf.cell(0, 8, "SERVIÇOS DE MÃO DE OBRA CONTRATADOS:", ln=True); pdf.set_font("Helvetica", "", 11)
     
-    # FORMATO PLANILHA INVISÍVEL: Estruturação em grid para Mão de Obra Contratada
+    # 🛠️ PLANILHA INVISÍVEL 1: Mão de Obra Contratada
     for serv in st.session_state.servicos_orcamento:
         if not serv["Bônus"]:
             valor_serv_com_todos_custos = serv["Total"] * fator_proporcional
             texto_item = f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')}"
             texto_valor = f"Investimento: {formatar_real(valor_serv_com_todos_custos)}"
-            
-            y_inicial = pdf.get_y()
-            pdf.set_x(10)
+            y_inicial = pdf.get_y(); pdf.set_x(10)
             pdf.multi_cell(132, 6, texto_item, border=0, align="L")
-            y_final = pdf.get_y()
-            
-            pdf.set_y(y_inicial)
-            pdf.set_x(142)
+            y_final = pdf.get_y(); pdf.set_y(y_inicial); pdf.set_x(142)
             pdf.cell(58, 6, texto_valor, border=0, ln=True, align="R")
-            
             if y_final > pdf.get_y(): pdf.set_y(y_final)
             pdf.ln(1.5)
     
     pdf.ln(3); pdf.set_font("Helvetica", "B", 11); pdf.cell(0, 8, "ATIVIDADES CONCEDIDAS COMO BÔNUS (CORTESIA):", ln=True); pdf.set_font("Helvetica", "", 11)
     if valor_total_bonus_exibicao > 0:
-        # FORMATO PLANILHA INVISÍVEL: Estruturação em grid para Atividades de Bônus (Com exibição de Valor real em vez de texto)
+        # 🛠️ PLANILHA INVISÍVEL 2: Mão de Obra de Cortesia (Com valor)
         for serv in st.session_state.servicos_orcamento:
             if serv["Bônus"]:
                 valor_bonus_inflado_linha = serv["Total"] * fator_proporcional
                 texto_item = f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')}"
                 texto_valor = f"Valor: {formatar_real(valor_bonus_inflado_linha)}"
-                
-                y_inicial = pdf.get_y()
-                pdf.set_x(10)
+                y_inicial = pdf.get_y(); pdf.set_x(10)
                 pdf.multi_cell(132, 6, texto_item, border=0, align="L")
-                y_final = pdf.get_y()
-                
-                pdf.set_y(y_inicial)
-                pdf.set_x(142)
+                y_final = pdf.get_y(); pdf.set_y(y_inicial); pdf.set_x(142)
                 pdf.cell(58, 6, texto_valor, border=0, ln=True, align="R")
-                
                 if y_final > pdf.get_y(): pdf.set_y(y_final)
                 pdf.ln(1.5)
     else: pdf.cell(0, 8, "Nenhuma atividade de bonus registrada para este projeto.", ln=True)
     
     pdf.ln(3); pdf.set_font("Helvetica", "B", 11); pdf.cell(0, 8, "MATERIAIS E INSUMOS COMPLEMENTARES:", ln=True); pdf.set_font("Helvetica", "", 11)
-    # FORMATO PLANILHA INVISÍVEL: Estruturação em grid para Insumos de Almoxarifado
+    # 🛠️ PLANILHA INVISÍVEL 3: Materiais do Almoxarifado
     for mat in st.session_state.materiais_orcamento:
         texto_material = f"-> {mat['Material']} | Qtd: {mat['Qtd']} UN | Preco Unit.: {formatar_real(mat['Preço'])}"
         texto_total_mat = f"Total: {formatar_real(mat['Total'])}"
-        
-        y_inicial = pdf.get_y()
-        pdf.set_x(10)
+        y_inicial = pdf.get_y(); pdf.set_x(10)
         pdf.multi_cell(132, 6, texto_material, border=0, align="L")
-        y_final = pdf.get_y()
-        
-        pdf.set_y(y_inicial)
-        pdf.set_x(142)
+        y_final = pdf.get_y(); pdf.set_y(y_inicial); pdf.set_x(142)
         pdf.cell(58, 6, texto_total_mat, border=0, ln=True, align="R")
-        
         if y_final > pdf.get_y(): pdf.set_y(y_final)
         pdf.ln(1.5)
     
@@ -371,20 +352,39 @@ with aba_orc_geral:
     pdf.cell(0, 8, f"Bonus: - {formatar_real(valor_total_bonus_exibicao)}", ln=True); pdf.cell(0, 8, f"Desconto: - {formatar_real(valor_desconto_dinheiro)}", ln=True)
     pdf.cell(0, 8, f"Valor Total: {formatar_real(preco_final_cheio)}", ln=True)
 
-    pdf.ln(4); pdf.set_font("Helvetica", "B", 12); pdf.cell(0, 10, f"valor total do investimento: {formatar_real(preco_final_cheio)}", ln=True); pdf.ln(10)
-    pdf.cell(0, 10, "CONDIÇÕES DE PAGAMENTO", ln=True); y_condicoes = pdf.get_y(); pdf.set_font("Helvetica", "B", 10.5); pdf.cell(135, 7, "Formas de Pagamento:", ln=True); pdf.set_font("Helvetica", "", 10.5)
-    pdf.multi_cell(135, 7, f"OPCAO 01 - A VISTA COM DESCONTO ESPECIAL:\nValor total com desconto aplicado: {formatar_real(preco_final_avista)}\n\nOPCAO 02 - PARCELAMENTO FACILITADO CORPORATIVO:\nPagamento em ate 10x mensais fixas de {formatar_real(valor_parcela_10x)}\nValor total final parcelado: {formatar_real(preco_final_parcelado_com_taxa)}")
+    pdf.ln(4); pdf.set_font("Helvetica", "B", 12); pdf.cell(0, 10, f"valor total do investmento: {formatar_real(preco_final_cheio)}", ln=True); pdf.ln(10)
     
+    # 🛠️ PLANILHA INVISÍVEL 4: Condições de Pagamento (Formato A4 Alinhado)
+    pdf.set_font("Helvetica", "B", 12); pdf.cell(0, 10, "CONDIÇÕES DE PAGAMENTO", ln=True); y_condicoes = pdf.get_y()
+    texto_opcao1 = f"OPCAO 01 - A VISTA COM DESCONTO ESPECIAL:\nValor total com desconto aplicado: {formatar_real(preco_final_avista)}"
+    texto_opcao2 = f"OPCAO 02 - PARCELAMENTO FACILITADO CORPORATIVO:\nPagamento em ate 10x mensais fixas de {formatar_real(valor_parcela_10x)}\nValor total final parcelado: {formatar_real(preco_final_parcelado_com_taxa)}"
+    texto_pagamento_completo = f"{texto_opcao1}\n\n{texto_opcao2}"
+    pdf.set_font("Helvetica", "", 10.5); pdf.set_x(10)
+    pdf.multi_cell(132, 6, texto_pagamento_completo, border=0, align="L")
+    y_final_condicoes = pdf.get_y()
+    
+    # 🛠️ PLANILHA INVISÍVEL 5: Textos de Garantia e Observações Importantes (Formato A4 Alinhado)
     def ler_arquivo_txt(n, d): return open(n, "r", encoding="utf-8").read() if os.path.exists(n) else d
-    t_gar = ler_arquivo_txt("garantia.txt", "90 dias."); t_obs = ler_arquivo_txt("observacoes.txt", "Sem alteração estrutural.")
-    pdf.ln(4); pdf.set_font("Helvetica", "B", 10.5); pdf.cell(135, 7, "Garantia dos Servicos:", ln=True); pdf.set_font("Helvetica", "", 10.5); pdf.multi_cell(135, 7, f"{t_gar}")
-    pdf.ln(4); pdf.set_font("Helvetica", "B", 10.5); pdf.cell(135, 7, "Observacoes Importantes:", ln=True); pdf.set_font("Helvetica", "", 10.5); pdf.multi_cell(135, 7, f"{t_obs}")
+    t_gar = ler_arquivo_txt("garantia.txt", "Garantia padrao de 90 dias conforme legislacao vigente.")
+    t_obs = ler_arquivo_txt("observacoes.txt", "Execucao estrutural vinculada estritamente aos itens listados.")
+    
+    if y_final_condicoes > pdf.get_y(): pdf.set_y(y_final_condicoes)
+    
+    pdf.ln(4); pdf.set_font("Helvetica", "B", 11); pdf.cell(0, 8, "GARANTIA DOS SERVIÇOS:", ln=True); y_g = pdf.get_y()
+    pdf.set_font("Helvetica", "", 10); pdf.set_x(10); pdf.multi_cell(132, 5.5, t_gar, border=0, align="L")
+    y_g_final = pdf.get_y()
+    
+    if y_g_final > pdf.get_y(): pdf.set_y(y_g_final)
+    
+    pdf.ln(4); pdf.set_font("Helvetica", "B", 11); pdf.cell(0, 8, "OBSERVAÇÕES IMPORTANTES:", ln=True); y_o = pdf.get_y()
+    pdf.set_font("Helvetica", "", 10); pdf.set_x(10); pdf.multi_cell(132, 5.5, t_obs, border=0, align="L")
     
     try:
         qr_res = requests.get(URL_QRCODE, timeout=5)
         if qr_res.status_code == 200:
             with open("temp_pdf_qr.png", "wb") as f: f.write(qr_res.content)
-            pdf.image("temp_pdf_qr.png", 158, y_condicoes, 38, 38); pdf.set_y(y_condicoes + 39); pdf.set_x(158); pdf.set_font("Helvetica", "B", 8.5); pdf.cell(38, 5, "Aprovar via WhatsApp", ln=True, align="C")
+            pdf.image("temp_pdf_qr.png", 154, y_condicoes, 40, 48); pdf.set_y(y_condicoes + 49); pdf.set_x(154)
+            pdf.set_font("Helvetica", "B", 8.5); pdf.cell(40, 5, "Aprovar via WhatsApp", border=0, ln=True, align="C")
             if os.path.exists("temp_pdf_qr.png"): os.remove("temp_pdf_qr.png")
     except Exception: pass
     
@@ -399,10 +399,7 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
         st.subheader(f"⚙️ Gerenciador de Banco de Dados: {nome_arquivo_csv}")
         dados_atuais = carregar_dados(nome_arquivo_csv)
         df_crud = pd.DataFrame(dados_atuais) if dados_atuais else pd.DataFrame(columns=campos_lista)
-        
-        # CORREÇÃO CRUCIAL DA RETAGUARDA: Extrai de forma dinâmica apenas a primeira string indexada pura da lista (ex: 'Nome' ou 'Item')
-        chave_busca = campos_lista[0] if isinstance(campos_lista, list) else campos_lista
-        
+        chave_busca = campos_lista if isinstance(campos_lista, list) else campos_lista
         st.markdown("#### ➕ Adicionar / Modificar Registro")
         
         if nome_arquivo_csv == "materiais.csv":
