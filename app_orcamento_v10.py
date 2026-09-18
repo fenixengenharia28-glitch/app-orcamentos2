@@ -260,12 +260,14 @@ with aba_orc_geral:
             custo_transporte = (km_r / cons_carro) * preco_combustivel
             depreciacao_veiculo_proporcional = (dep_anual / 365)
 # ==============================================================================
-# BLOCO 4: CÁLCULOS COMERCIAIS E DESIGN DO PDF COM PLANILHA INVISÍVEL A4
+# BLOCO 4: CÁLCULOS COMERCIAIS E DESIGN DO PDF COM GRID DE LINHAS TRANSPARENTES
 # ==============================================================================
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
         desconto_comercial_pc = st.number_input("Desconto Comercial Concedido (%):", min_value=0.0, value=0.0, step=1.0)
-        desconto_ सविता_pc = desconto_ सविता_pc = desconto_avista_pc = st.number_input("Desconto Adicional para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
+        
+        # CORREÇÃO DEFINITIVA DA LINHA 268 DO ERRO: Removida inteiramente a string corrompida indiana
+        desconto_avista_pc = st.number_input("Desconto Adicional para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
 
     custo_bruto_materials = sum([item["Total"] for item in st.session_state.materiais_orcamento])
     custo_bruto_servicos_total = sum([item["Total"] for item in st.session_state.servicos_orcamento])
@@ -306,64 +308,67 @@ with aba_orc_geral:
     pdf.set_font("Helvetica", "B", 12); pdf.cell(0, 10, "DETALHAMENTO NOMINAL DOS ITENS DO PROJETO", ln=True)
     pdf.set_font("Helvetica", "B", 11); pdf.cell(0, 8, "SERVIÇOS DE MÃO DE OBRA CONTRATADOS:", ln=True); pdf.set_font("Helvetica", "", 11)
     
+    # SOLUÇÃO DE MARGEM: Grid invisível para Serviços de Mão de Obra
     for serv in st.session_state.servicos_orcamento:
         if not serv["Bônus"]:
             valor_serv_com_todos_custos = serv["Total"] * fator_proporcional
             texto_item = f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')}"
             texto_valor = f"Investimento: {formatar_real(valor_serv_com_todos_custos)}"
             
-            eixo_y_inicial = pdf.get_y()
+            y_inicial = pdf.get_y()
             pdf.set_x(10)
-            pdf.multi_cell(135, 6, texto_item, border=0, align="L")
-            eixo_y_final = pdf.get_y()
+            pdf.multi_cell(132, 6, texto_item, border=0, align="L")
+            y_final = pdf.get_y()
             
-            pdf.set_y(eixo_y_inicial)
-            pdf.set_x(145)
-            pdf.cell(55, 6, texto_valor, border=0, ln=True, align="R")
+            pdf.set_y(y_inicial)
+            pdf.set_x(142)
+            pdf.cell(58, 6, texto_valor, border=0, ln=True, align="R")
             
-            if eixo_y_final > pdf.get_y():
-                pdf.set_y(eixo_y_final)
-            pdf.ln(1)
+            if y_final > pdf.get_y():
+                pdf.set_y(y_final)
+            pdf.ln(1.5)
     
     pdf.ln(3); pdf.set_font("Helvetica", "B", 11); pdf.cell(0, 8, "ATIVIDADES CONCEDIDAS COMO BÔNUS (CORTESIA):", ln=True); pdf.set_font("Helvetica", "", 11)
     if valor_total_bonus_exibicao > 0:
+        # SOLUÇÃO DE MARGEM: Grid invisível para Atividades Cortesia
         for serv in st.session_state.servicos_orcamento:
             if serv["Bônus"]:
                 valor_bonus_inflado_linha = serv["Total"] * fator_proporcional
                 texto_item = f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')}"
                 texto_valor = "CORTESIA INCLUSA"
                 
-                eixo_y_inicial = pdf.get_y()
+                y_inicial = pdf.get_y()
                 pdf.set_x(10)
-                pdf.multi_cell(135, 6, texto_item, border=0, align="L")
-                eixo_y_final = pdf.get_y()
+                pdf.multi_cell(132, 6, texto_item, border=0, align="L")
+                y_final = pdf.get_y()
                 
-                pdf.set_y(eixo_y_inicial)
-                pdf.set_x(145)
-                pdf.cell(55, 6, texto_valor, border=0, ln=True, align="R")
+                pdf.set_y(y_inicial)
+                pdf.set_x(142)
+                pdf.cell(58, 6, texto_valor, border=0, ln=True, align="R")
                 
-                if eixo_y_final > pdf.get_y():
-                    pdf.set_y(eixo_y_final)
-                pdf.ln(1)
+                if y_final > pdf.get_y():
+                    pdf.set_y(y_final)
+                pdf.ln(1.5)
     else: pdf.cell(0, 8, "Nenhuma atividade de bonus registrada para este projeto.", ln=True)
     
     pdf.ln(3); pdf.set_font("Helvetica", "B", 11); pdf.cell(0, 8, "MATERIAIS E INSUMOS COMPLEMENTARES:", ln=True); pdf.set_font("Helvetica", "", 11)
+    # SOLUÇÃO DE MARGEM: Grid invisível para Almoxarifado de Materiais
     for mat in st.session_state.materiais_orcamento:
         texto_material = f"-> {mat['Material']} | Qtd: {mat['Qtd']} UN | Preco Unit.: {formatar_real(mat['Preço'])}"
         texto_total_mat = f"Total: {formatar_real(mat['Total'])}"
         
-        eixo_y_inicial = pdf.get_y()
+        y_inicial = pdf.get_y()
         pdf.set_x(10)
-        pdf.multi_cell(135, 6, texto_material, border=0, align="L")
-        eixo_y_final = pdf.get_y()
+        pdf.multi_cell(132, 6, texto_material, border=0, align="L")
+        y_final = pdf.get_y()
         
-        pdf.set_y(eixo_y_inicial)
-        pdf.set_x(145)
-        pdf.cell(55, 6, texto_total_mat, border=0, ln=True, align="R")
+        pdf.set_y(y_inicial)
+        pdf.set_x(142)
+        pdf.cell(58, 6, texto_total_mat, border=0, ln=True, align="R")
         
-        if eixo_y_final > pdf.get_y():
-            pdf.set_y(eixo_y_final)
-        pdf.ln(1)
+        if y_final > pdf.get_y():
+            pdf.set_y(y_final)
+        pdf.ln(1.5)
     
     pdf.ln(8); pdf.set_font("Helvetica", "B", 12); pdf.cell(0, 10, "COMPOSIÇÃO FINANCEIRA DO PROJETO", ln=True); pdf.set_font("Helvetica", "", 11)
     pdf.cell(0, 8, f"Mao de Obra: {formatar_real(valor_composto_mao_de_obra_total)}", ln=True); pdf.cell(0, 8, f"Material: {formatar_real(custo_bruto_materials)}", ln=True)
@@ -391,7 +396,7 @@ with aba_orc_geral:
     with col_d1: st.download_button(label="📥 Baixar Orçamento Customizado em PDF", data=bytes(pdf_output), file_name=f"Orcamento_Fenix_{cli_sel.replace(' ', '_')}.pdf", mime="application/pdf")
     with col_d2: st.link_button("💬 Enviar via WhatsApp", LINK_WHATSAPP)
 # ==============================================================================
-# BLOCO 5: RETAGUARDA OPERACIONAL - CADASTROS CRUD COM IDENTIFICAÇÃO STR COMPATÍVEL
+# BLOCO 5: RETAGUARDA OPERACIONAL - CADASTROS CRUD COM IDENTIFICAÇÃO EM STRING FIXA
 # ==============================================================================
 def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio):
     with nome_aba:
@@ -399,7 +404,7 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
         dados_atuais = carregar_dados(nome_arquivo_csv)
         df_crud = pd.DataFrame(dados_atuais) if dados_atuais else pd.DataFrame(columns=campos_lista)
         
-        # CORREÇÃO DEFINITIVA DO ERRO DA IMAGEM: chave_busca agora extrai o nome primitivo (ex: 'Nome') em formato String puro
+        # CORREÇÃO CRUCIAL DA CHAVE: Extrai o primeiro termo de forma estritamente primitiva em String pura
         chave_busca = str(campos_lista[0])
         
         st.markdown("#### ➕ Adicionar / Modificar Registro")
