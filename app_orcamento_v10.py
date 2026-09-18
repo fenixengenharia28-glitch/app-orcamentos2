@@ -1,5 +1,5 @@
 # ==============================================================================
-# BLOCO 1: IMPORTAÇÕES, DEPENDÊNCIAS, FUNÇÃO MONETÁRIA E ESTRUTURA BASE DO PDF
+# PARTE 1: IMPORTAÇÕES, DEPENDÊNCIAS, FUNÇÃO MONETÁRIA E ESTRUTURA BASE DO PDF
 # ==============================================================================
 import streamlit as st
 import pandas as pd
@@ -76,7 +76,7 @@ class PDFOrcamento(FPDF):
         self.set_font("Helvetica", "I", 8)
         self.cell(0, 10, f"FENIX ENGENHARIA E COMERCIO LTDA - Página {self.page_no()}/{{nb}}", align="C")
 # ==============================================================================
-# BLOCO 2: MOTOR DE INTEGRACAO COM GITHUB API (CARGA E SALVAMENTO DE TABELAS)
+# PARTE 2: COMUNICAÇÃO COM O GITHUB API PARA PERSISTÊNCIA PERMANENTE
 # ==============================================================================
 def salvar_no_github(nome_arquivo_csv, df_novo, sobrescrever=False):
     try:
@@ -162,7 +162,7 @@ if 'materiais_orcamento' not in st.session_state: st.session_state.materiais_orc
 if 'servicos_orcamento' not in st.session_state: st.session_state.servicos_orcamento = []
 if 'logo_bytes' not in st.session_state: st.session_state.logo_bytes = carregar_logo_persistida()
 # ==============================================================================
-# BLOCO 3: SELEÇÃO DE CLIENTE, INCLUSÃO DE MÃO DE OBRA, PRODUTOS E LOGÍSTICA
+# PARTE 3: INTERFACE GRÁFICA DO USUÁRIO E SELEÇÃO DE ESCOPOS DO PROJETO
 # ==============================================================================
 col_topo1, col_topo2 = st.columns(2)
 with col_topo1:
@@ -208,12 +208,12 @@ with aba_orc_geral:
             lista_servicos_nomes = df_serv_disp["Descrição"].dropna().tolist()
             servico_escolhido = st.selectbox("Escolha qual tipo de serviço será prestado:", lista_servicos_nomes)
             linha_filtrada = df_serv_disp[df_serv_disp["Descrição"] == servico_escolhido]
-            unidade_medida_servico = str(linha_filtrada["Unidade"].iloc[0]) if "Unidade" in linha_filtrada.columns else "UN"
+            unidade_medida_servico = str(linha_filtrada["Unidade"].values[0]) if "Unidade" in linha_filtrada.columns else "UN"
             qtd_servico_solicitado = st.number_input(f"Especifique a quantidade ({unidade_medida_servico}):", min_value=1.0, value=1.0, step=1.0)
             servico_bonus = st.checkbox("Definir esta atividade como BÔNUS do orçamento")
             
             if st.button("➕ Adicionar Serviço ao Escopo"):
-                preco_unitario_servico = float(linha_filtrada["Valor Compra Un. (R$)"].iloc[0])
+                preco_unitario_servico = float(linha_filtrada["Valor Compra Un. (R$)"].values[0])
                 preco_calculado_linha = preco_unitario_servico * qtd_servico_solicitado
                 st.session_state.servicos_orcamento.append({
                     "Descrição": servico_escolhido, "Quantidade": int(qtd_servico_solicitado),
@@ -263,7 +263,7 @@ with aba_orc_geral:
             custo_transporte = (km_r / cons_carro) * preco_combustivel
             depreciacao_veiculo_proporcional = (dep_anual / 365)
 # ==============================================================================
-# BLOCO 4: MOTOR COMERCIAL DE CÁLCULO E RENDERIZAÇÃO DE TEXTOS DO PDF A4
+# PARTE 4: MOTOR FINANCEIRO DE CÁLCULO E CONSTRUÇÃO COMPLETA DO ARQUIVO PDF
 # ==============================================================================
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
@@ -341,7 +341,7 @@ with aba_orc_geral:
     pdf.cell(0, 8, f"Desconto: - {formatar_real(valor_desconto_dinheiro)}", ln=True)
     pdf.cell(0, 8, f"Valor Total: {formatar_real(preco_final_cheio)}", ln=True)
 
-    pdf.ln(4); pdf.set_font("Helvetica", "B", 12); pdf.cell(0, 10, f"valor total do investimento: {formatar_real(preco_final_cheio)}", ln=True); pdf.ln(10)
+    pdf.ln(4); pdf.set_font("Helvetica", "B", 12); pdf.cell(0, 10, f"valor total do investmento: {formatar_real(preco_final_cheio)}", ln=True); pdf.ln(10)
     pdf.cell(0, 10, "CONDIÇÕES DE PAGAMENTO", ln=True); y_condicoes = pdf.get_y()
     pdf.set_font("Helvetica", "B", 10.5); pdf.cell(135, 7, "Formas de Pagamento:", ln=True); pdf.set_font("Helvetica", "", 10.5)
     pdf.multi_cell(135, 7, f"OPCAO 01 - A VISTA COM DESCONTO ESPECIAL:\nValor total com desconto aplicado: {formatar_real(preco_final_avista)}\n\nOPCAO 02 - PARCELAMENTO FACILITADO CORPORATIVO:\nPagamento em ate 10x mensais fixas de {formatar_real(valor_parcela_10x)}\nValor total final parcelado: {formatar_real(preco_final_parcelado_com_taxa)}")
@@ -367,14 +367,17 @@ with aba_orc_geral:
     with col_d1: st.download_button(label="📥 Baixar Orçamento Customizado em PDF", data=bytes(pdf_output), file_name=f"Orcamento_Fenix_{cli_sel.replace(' ', '_')}.pdf", mime="application/pdf")
     with col_d2: st.link_button("💬 Enviar via WhatsApp", LINK_WHATSAPP)
 # ==============================================================================
-# BLOCO 5: CRUDS ADMINISTRATIVOS DE RETAGUARDA TOTALMENTE FILTRADOS (PT-BR)
+# PARTE 5: RETAGUARDA OPERACIONAL - CRUDS COM ENGENHARIA DE BUSCA CORRIGIDA (FIXED)
 # ==============================================================================
 def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio):
     with nome_aba:
         st.subheader(f"⚙️ Gerenciador de Banco de Dados: {nome_arquivo_csv}")
         dados_atuais = carregar_dados(nome_arquivo_csv)
         df_crud = pd.DataFrame(dados_atuais) if dados_atuais else pd.DataFrame(columns=campos_lista)
+        
+        # CORREÇÃO CRUCIAL DA IMAGEM: Garante que chave_busca seja apenas o primeiro nome em formato string pura
         chave_busca = campos_lista[0]
+        
         st.markdown("#### ➕ Adicionar / Modificar Registro")
         
         if nome_arquivo_csv == "materiais.csv":
@@ -403,7 +406,11 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
                 if st.form_submit_button("💾 Arquivar Registro no GitHub"):
                     if inputs_coletados[chave_busca]:
                         df_novo_registro = pd.DataFrame([inputs_coletados])
-                        if not df_crud.empty and chave_busca in df_crud.columns: df_crud = df_crud[df_crud[df_crud[chave_busca] != inputs_coletados[chave_busca]]]
+                        
+                        # CORREÇÃO DA LINHA 406 DA IMAGEM: Substituída a filtragem com lista pura pela string chave_busca
+                        if not df_crud.empty and chave_busca in df_crud.columns:
+                            df_crud = df_crud[df_crud[chave_busca] != inputs_coletados[chave_busca]]
+                            
                         df_final_salvar = pd.concat([df_crud, df_novo_registro]).reset_index(drop=True)
                         salvar_no_github(nome_arquivo_csv, df_final_salvar, sobrescrever=True)
                         st.success("Dados processados e salvos com sucesso!")
