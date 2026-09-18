@@ -260,12 +260,11 @@ with aba_orc_geral:
             custo_transporte = (km_r / cons_carro) * preco_combustivel
             depreciacao_veiculo_proporcional = (dep_anual / 365)
 # ==============================================================================
-# BLOCO 4: MOTOR FINANCEIRO DE CÁLCULO E CORREÇÃO DE MARGEM DE QUEBRA DO PDF (MULTI_CELL FIXED)
+# BLOCO 4: CÁLCULOS COMERCIAIS E DESIGN DO PDF COM TABELAS DE BORDAS TRANSPARENTES
 # ==============================================================================
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
         desconto_comercial_pc = st.number_input("Desconto Comercial Concedido (%):", min_value=0.0, value=0.0, step=1.0)
-        # CORREÇÃO CRUCIAL SANEADA: Atribuição limpa removendo de vez o termo corrompido que causava quebra de sintaxe
         desconto_avista_pc = st.number_input("Desconto Adicional para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
 
     custo_bruto_materials = sum([item["Total"] for item in st.session_state.materiais_orcamento])
@@ -306,24 +305,68 @@ with aba_orc_geral:
 
     pdf.set_font("Helvetica", "B", 12); pdf.cell(0, 10, "DETALHAMENTO NOMINAL DOS ITENS DO PROJETO", ln=True)
     pdf.set_font("Helvetica", "B", 11); pdf.cell(0, 8, "SERVIÇOS DE MÃO DE OBRA CONTRATADOS:", ln=True); pdf.set_font("Helvetica", "", 11)
+    
+    # 🛠️ CORREÇÃO ABSOLUTA: Tabela Invisível com linhas transparentes para Mão de Obra contratada
     for serv in st.session_state.servicos_orcamento:
         if not serv["Bônus"]:
             valor_serv_com_todos_custos = serv["Total"] * fator_proporcional
-            # CORREÇÃO DA MARGEM: Ajustado de cell para multi_cell com largura máxima fixa de 190 para forçar quebra de linha nos serviços longos
-            pdf.multi_cell(190, 7, f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')} | Investimento: {formatar_real(valor_serv_com_todos_custos)}")
+            texto_item = f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')}"
+            texto_valor = f"Investimento: {formatar_real(valor_serv_com_todos_custos)}"
+            
+            eixo_y_inicial = pdf.get_y()
+            pdf.set_x(10)
+            pdf.multi_cell(135, 6, texto_item, border=0, align="L")
+            eixo_y_final = pdf.get_y()
+            
+            pdf.set_y(eixo_y_inicial)
+            pdf.set_x(145)
+            pdf.cell(55, 6, texto_valor, border=0, ln=True, align="R")
+            
+            if eixo_y_final > pdf.get_y():
+                pdf.set_y(eixo_y_final)
+            pdf.ln(1)
     
-    pdf.ln(4); pdf.set_font("Helvetica", "B", 11); pdf.cell(0, 8, "ATIVIDADES CONCEDIDAS COMO BÔNUS (CORTESIA):", ln=True); pdf.set_font("Helvetica", "", 11)
+    pdf.ln(3); pdf.set_font("Helvetica", "B", 11); pdf.cell(0, 8, "ATIVIDADES CONCEDIDAS COMO BÔNUS (CORTESIA):", ln=True); pdf.set_font("Helvetica", "", 11)
     if valor_total_bonus_exibicao > 0:
+        # 🛠️ CORREÇÃO ABSOLUTA: Tabela Invisível com linhas transparentes para Atividades Bônus
         for serv in st.session_state.servicos_orcamento:
             if serv["Bônus"]:
                 valor_bonus_inflado_linha = serv["Total"] * fator_proporcional
-                pdf.multi_cell(190, 7, f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')} | Valor Real com Diluicao: {formatar_real(valor_bonus_inflado_linha)}")
+                texto_item = f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')}"
+                texto_valor = "CORTESIA INCLUSA"
+                
+                eixo_y_inicial = pdf.get_y()
+                pdf.set_x(10)
+                pdf.multi_cell(135, 6, texto_item, border=0, align="L")
+                eixo_y_final = pdf.get_y()
+                
+                pdf.set_y(eixo_y_inicial)
+                pdf.set_x(145)
+                pdf.cell(55, 6, texto_valor, border=0, ln=True, align="R")
+                
+                if eixo_y_final > pdf.get_y():
+                    pdf.set_y(eixo_y_final)
+                pdf.ln(1)
     else: pdf.cell(0, 8, "Nenhuma atividade de bonus registrada para este projeto.", ln=True)
     
-    pdf.ln(4); pdf.set_font("Helvetica", "B", 11); pdf.cell(0, 8, "MATERIAIS E INSUMOS COMPLEMENTARES:", ln=True); pdf.set_font("Helvetica", "", 11)
+    pdf.ln(3); pdf.set_font("Helvetica", "B", 11); pdf.cell(0, 8, "MATERIAIS E INSUMOS COMPLEMENTARES:", ln=True); pdf.set_font("Helvetica", "", 11)
+    # 🛠️ CORREÇÃO ABSOLUTA: Tabela Invisível com linhas transparentes para Materiais do Almoxarifado
     for mat in st.session_state.materiais_orcamento:
-        # CORREÇÃO DA MARGEM: Alterado para multi_cell com tamanho 190 fixo eliminando o corte na borda direita das tabelas de insumos
-        pdf.multi_cell(190, 7, f"-> {mat['Material']} | Qtd: {mat['Qtd']} UN | Preco Unitario: {formatar_real(mat['Preço'])} | Total: {formatar_real(mat['Total'])}")
+        texto_material = f"-> {mat['Material']} | Qtd: {mat['Qtd']} UN | Preco Unit.: {formatar_real(mat['Preço'])}"
+        texto_total_mat = f"Total: {formatar_real(mat['Total'])}"
+        
+        eixo_y_inicial = pdf.get_y()
+        pdf.set_x(10)
+        pdf.multi_cell(135, 6, texto_material, border=0, align="L")
+        eixo_y_final = pdf.get_y()
+        
+        pdf.set_y(eixo_y_inicial)
+        pdf.set_x(145)
+        pdf.cell(55, 6, texto_total_mat, border=0, ln=True, align="R")
+        
+        if eixo_y_final > pdf.get_y():
+            pdf.set_y(eixo_y_final)
+        pdf.ln(1)
     
     pdf.ln(8); pdf.set_font("Helvetica", "B", 12); pdf.cell(0, 10, "COMPOSIÇÃO FINANCEIRA DO PROJETO", ln=True); pdf.set_font("Helvetica", "", 11)
     pdf.cell(0, 8, f"Mao de Obra: {formatar_real(valor_composto_mao_de_obra_total)}", ln=True); pdf.cell(0, 8, f"Material: {formatar_real(custo_bruto_materials)}", ln=True)
@@ -358,7 +401,7 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
         st.subheader(f"⚙️ Gerenciador de Banco de Dados: {nome_arquivo_csv}")
         dados_atuais = carregar_dados(nome_arquivo_csv)
         df_crud = pd.DataFrame(dados_atuais) if dados_atuais else pd.DataFrame(columns=campos_lista)
-        chave_busca = campos_lista[0] if isinstance(campos_lista, list) else campos_lista
+        chave_busca = campos_lista if isinstance(campos_lista, list) else campos_lista
         st.markdown("#### ➕ Adicionar / Modificar Registro")
         
         if nome_arquivo_csv == "materiais.csv":
