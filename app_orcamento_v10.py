@@ -205,12 +205,12 @@ with aba_orc_geral:
             servico_escolhido = st.selectbox("Escolha qual tipo de serviço será prestado:", lista_servicos_nomes)
             linha_filtrada = df_serv_disp[df_serv_disp["Descrição"] == servico_escolhido]
             
-            unidade_medida_servico = str(linha_filtrada["Unidade"].values[0]) if "Unidade" in linha_filtrada.columns and len(linha_filtrada) > 0 else "UN"
+            unidade_medida_servico = str(linha_filtrada["Unidade"].values) if "Unidade" in linha_filtrada.columns and len(linha_filtrada) > 0 else "UN"
             qtd_servico_solicitado = st.number_input(f"Especifique a quantidade ({unidade_medida_servico}):", min_value=1.0, value=1.0, step=1.0)
             servico_bonus = st.checkbox("Definir esta atividade como BÔNUS do orçamento")
             
             if st.button("➕ Adicionar Serviço ao Escopo"):
-                preco_unitario_servico = float(linha_filtrada["Valor Compra Un. (R$)"].values[0])
+                preco_unitario_servico = float(linha_filtrada["Valor Compra Un. (R$)"].values)
                 preco_calculado_linha = preco_unitario_servico * qtd_servico_solicitado
                 st.session_state.servicos_orcamento.append({
                     "Descrição": servico_escolhido, "Quantidade": int(qtd_servico_solicitado),
@@ -260,13 +260,11 @@ with aba_orc_geral:
             custo_transporte = (km_r / cons_carro) * preco_combustivel
             depreciacao_veiculo_proporcional = (dep_anual / 365)
 # ==============================================================================
-# BLOCO 4: CÁLCULOS COMERCIAIS E DESIGN DO PDF COM GRID DE LINHAS TRANSPARENTES
+# BLOCO 4: CÁLCULOS COMERCIAIS E DESIGN DO PDF COM REQUISITO DE VALOR DE BÔNUS NA TABELA
 # ==============================================================================
         st.markdown("#### 📊 Configurações Comerciais")
         imposto_pc = st.number_input("Porcentagem de Imposto para Diluir na Mão de Obra (%):", min_value=0.0, value=6.0)
         desconto_comercial_pc = st.number_input("Desconto Comercial Concedido (%):", min_value=0.0, value=0.0, step=1.0)
-        
-        # CORREÇÃO DEFINITIVA DA LINHA 268 DO ERRO: Removida inteiramente a string corrompida indiana
         desconto_avista_pc = st.number_input("Desconto Adicional para Pagamento À VISTA (%):", min_value=0.0, value=10.0, step=1.0)
 
     custo_bruto_materials = sum([item["Total"] for item in st.session_state.materiais_orcamento])
@@ -308,7 +306,6 @@ with aba_orc_geral:
     pdf.set_font("Helvetica", "B", 12); pdf.cell(0, 10, "DETALHAMENTO NOMINAL DOS ITENS DO PROJETO", ln=True)
     pdf.set_font("Helvetica", "B", 11); pdf.cell(0, 8, "SERVIÇOS DE MÃO DE OBRA CONTRATADOS:", ln=True); pdf.set_font("Helvetica", "", 11)
     
-    # SOLUÇÃO DE MARGEM: Grid invisível para Serviços de Mão de Obra
     for serv in st.session_state.servicos_orcamento:
         if not serv["Bônus"]:
             valor_serv_com_todos_custos = serv["Total"] * fator_proporcional
@@ -330,12 +327,12 @@ with aba_orc_geral:
     
     pdf.ln(3); pdf.set_font("Helvetica", "B", 11); pdf.cell(0, 8, "ATIVIDADES CONCEDIDAS COMO BÔNUS (CORTESIA):", ln=True); pdf.set_font("Helvetica", "", 11)
     if valor_total_bonus_exibicao > 0:
-        # SOLUÇÃO DE MARGEM: Grid invisível para Atividades Cortesia
         for serv in st.session_state.servicos_orcamento:
             if serv["Bônus"]:
                 valor_bonus_inflado_linha = serv["Total"] * fator_proporcional
                 texto_item = f"-> {serv['Descrição']} | Qtd: {serv['Quantidade']} {serv.get('Unidade', 'UN')}"
-                texto_valor = "CORTESIA INCLUSA"
+                # 🛠️ ATUALIZAÇÃO CONFORME REQUISITO: Exibindo o valor contábil real do item em vez de "CORTESIA INCLUSA"
+                texto_valor = f"Valor: {formatar_real(valor_bonus_inflado_linha)}"
                 
                 y_inicial = pdf.get_y()
                 pdf.set_x(10)
@@ -352,7 +349,6 @@ with aba_orc_geral:
     else: pdf.cell(0, 8, "Nenhuma atividade de bonus registrada para este projeto.", ln=True)
     
     pdf.ln(3); pdf.set_font("Helvetica", "B", 11); pdf.cell(0, 8, "MATERIAIS E INSUMOS COMPLEMENTARES:", ln=True); pdf.set_font("Helvetica", "", 11)
-    # SOLUÇÃO DE MARGEM: Grid invisível para Almoxarifado de Materiais
     for mat in st.session_state.materiais_orcamento:
         texto_material = f"-> {mat['Material']} | Qtd: {mat['Qtd']} UN | Preco Unit.: {formatar_real(mat['Preço'])}"
         texto_total_mat = f"Total: {formatar_real(mat['Total'])}"
@@ -403,10 +399,7 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
         st.subheader(f"⚙️ Gerenciador de Banco de Dados: {nome_arquivo_csv}")
         dados_atuais = carregar_dados(nome_arquivo_csv)
         df_crud = pd.DataFrame(dados_atuais) if dados_atuais else pd.DataFrame(columns=campos_lista)
-        
-        # CORREÇÃO CRUCIAL DA CHAVE: Extrai o primeiro termo de forma estritamente primitiva em String pura
-        chave_busca = str(campos_lista[0])
-        
+        chave_busca = str(campos_lista)
         st.markdown("#### ➕ Adicionar / Modificar Registro")
         
         if nome_arquivo_csv == "materiais.csv":
@@ -420,7 +413,7 @@ def renderizar_crud(nome_aba, s_key, nome_arquivo_csv, campos_lista, dict_vazio)
                         preco_venda_calculado = m_custo * (1 + (m_lucro_pc / 100))
                         novo_reg_mat = {"Item": m_item, "Unidade": m_unidade, "Preço de Custo": m_custo, "Margem de Lucro (%)": m_lucro_pc, "Preço Unitário": round(preco_venda_calculado, 2)}
                         df_novo_registro = pd.DataFrame([novo_reg_mat])
-                        if not df_crud.empty and "Item" in df_crud.columns: df_crud = df_crud[df_crud["Item"] != m_item]
+                        if not df_crud.empty family and "Item" in df_crud.columns: df_crud = df_crud[df_crud["Item"] != m_item]
                         df_final_salvar = pd.concat([df_crud, df_novo_registro]).reset_index(drop=True)
                         salvar_no_github("materiais.csv", df_final_salvar, sobrescrever=True)
                         st.success(f"Produto salvo! Preço de venda gerado: {formatar_real(preco_venda_calculado)}")
